@@ -101,6 +101,24 @@ enum TransactionStatus {
   FAILED
 }
 
+enum TradingMode {
+  PAPER
+  LIVE
+}
+
+enum PositionStatus {
+  OPEN
+  CLOSED
+}
+
+enum ExitReason {
+  TAKE_PROFIT
+  STOP_LOSS
+  TRAILING_STOP
+  MAX_HOLD
+  MANUAL
+}
+
 enum DataSourceKind {
   REPPO
   HTTP
@@ -123,6 +141,7 @@ model User {
   agents    Agent[]
   operators Operator[]
   jobs      Job[]
+  automations Automation[]
 
   @@map("users")
 }
@@ -327,6 +346,7 @@ model Job {
   rewards     Reward[]
   events      JobEvent[]
   spends      BudgetSpend[]
+  position    Position?
 
   @@index([status, createdAt])
   @@index([type])
@@ -693,4 +713,120 @@ model BudgetSpend {
   @@index([operatorId, createdAt])
   @@index([jobId])
   @@map("budget_spends")
+}
+
+
+// ─── Automation ─────────────────────────────────────────────────────────────
+
+/// A deployed trading automation.
+///
+/// It is a *consumer* of intelligence, not part of the protocol core: it reads
+/// finished jobs and turns the ones that clear its policy into positions.
+/// Nothing in `packages/protocol` knows this table exists, which is the layer
+/// boundary that keeps the protocol general.
+///
+/// Custody is deliberately absent. There is no key column and no wallet the
+/// server can sign with — the only mode that exists is PAPER, and a live driver
+/// would sign in the owner's browser rather than here.
+model Automation {
+  id            String       @id @default(cuid())
+  name          String
+  ownerId       String
+  owner         User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  /// Serialized TradePolicy — the gates, sizing, exits and breaker limits.
+  policy        Json         @default("{}")
+
+  /// Whether trades spend real money. Separate from `active` on purpose: one
+  /// says the automation may trade, the other says what those trades cost.
+  /// Collapsing them would make going live a side effect of pressing Start.
+  mode          TradingMode  @default(PAPER)
+
+  /// The owner's master switch. Gates *new entries only* — an open position
+  /// keeps being watched and exited by its own rules after a stop, because
+  /// abandoning live risk is worse than continuing to manage it.
+  active        Boolean      @default(false)
+
+  /// Moves the circuit breaker's window forward without deleting the trades
+  /// that tripped it. The breaker itself is derived, never stored.
+  breakerResetAt DateTime?
+
+  /// Capability filter for the jobs this automation will act on.
+  capabilities  String[]     @default([])
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  positions     Position[]
+  events        AutomationEvent[]
+
+  @@unique([ownerId, name])
+  @@index([active, mode])
+  @@map("automations")
+}
+
+/// One position, opened from exactly one intelligence job.
+model Position {
+  id            String         @id @default(cuid())
+  automationId  String
+  automation    Automation     @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  /// The job whose merged verdict opened this position.
+  ///
+  /// Unique across the table, not merely per automation: queues deliver at
+  /// least once, and the same verdict arriving twice must not become two
+  /// positions. This is the same defence `Transaction.rewardId` gives
+  /// settlement — the constraint, not the application code, is what makes it
+  /// true under concurrency.
+  jobId         String         @unique
+  job           Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  mint          String
+  symbol        String
+
+  status        PositionStatus @default(OPEN)
+  sizeUsd       Decimal        @db.Decimal(18, 6)
+  entryPrice    Decimal        @db.Decimal(24, 12)
+  /// Highest price seen since entry — the trailing stop's reference.
+  peakPrice     Decimal        @db.Decimal(24, 12)
+  exitPrice     Decimal?       @db.Decimal(24, 12)
+  pnlUsd        Decimal?       @db.Decimal(18, 6)
+  exitReason    ExitReason?
+
+  /// The verdict this was opened on, recorded so the decision can be read back
+  /// even after the job's consensus row is recomputed.
+  confidence    Float
+  consensus     Float
+  agentsReporting Int
+
+  openedAt      DateTime       @default(now())
+  closedAt      DateTime?
+
+  @@index([automationId, status])
+  @@index([automationId, closedAt])
+  @@map("positions")
+}
+
+/// The automation's audit trail — the counterpart of JobEvent.
+///
+/// Refusals are recorded, not only actions. "Why did nothing trade today" is
+/// the question an operator actually asks, and it is unanswerable from a table
+/// that only remembers the trades that happened.
+model AutomationEvent {
+  id            String     @id @default(cuid())
+  automationId  String
+  automation    Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  /// "EVALUATED" | "OPENED" | "CLOSED" | "REFUSED" | "BREAKER" | "MODE" | "TOGGLED"
+  kind          String
+  /// The binding gate for a refusal, the exit reason for a close.
+  reason        String?
+  message       String
+  jobId         String?
+  detail        Json       @default("{}")
+
+  createdAt     DateTime   @default(now())
+
+  @@index([automationId, createdAt])
+  @@map("automation_events")
 }

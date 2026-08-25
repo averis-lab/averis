@@ -24,6 +24,7 @@ export default defineConfig({
       "@averis/reputation": pkg("reputation"),
       "@averis/strategy": pkg("strategy"),
       "@averis/budget": pkg("budget"),
+      "@averis/execution": pkg("execution"),
       "@averis/protocol": pkg("protocol"),
       "@averis/sdk": pkg("sdk"),
       // The web app's own alias, so its server-side modules can be tested here.

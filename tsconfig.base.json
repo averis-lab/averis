@@ -41,6 +41,8 @@
       "@averis/strategy/*": ["./packages/strategy/src/*"],
       "@averis/budget": ["./packages/budget/src/index.ts"],
       "@averis/budget/*": ["./packages/budget/src/*"],
+      "@averis/execution": ["./packages/execution/src/index.ts"],
+      "@averis/execution/*": ["./packages/execution/src/*"],
       "@averis/protocol": ["./packages/protocol/src/index.ts"],
       "@averis/protocol/*": ["./packages/protocol/src/*"],
       "@averis/sdk": ["./packages/sdk/src/index.ts"],

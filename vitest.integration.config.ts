@@ -41,6 +41,7 @@ export default defineConfig({
       "@averis/reputation": pkg("reputation"),
       "@averis/strategy": pkg("strategy"),
       "@averis/budget": pkg("budget"),
+      "@averis/execution": pkg("execution"),
       "@averis/protocol": pkg("protocol"),
       "@averis/sdk": pkg("sdk"),
     },
