@@ -1,0 +1,17 @@
+{
+  "name": "@averis/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared Prisma client and repository helpers.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@averis/types": "*",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "dotenv": "^17.0.0"
+  }
+}

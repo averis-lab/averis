@@ -1,0 +1,9 @@
+{
+  "name": "@averis/consensus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Modular consensus engine: claim clustering, weighting strategies, disagreement surfacing.",
+  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "dependencies": { "@averis/types": "*" }
+}

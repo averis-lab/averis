@@ -1,0 +1,92 @@
+# Averis on Fly.io
+#
+# One image, two process groups. The Dockerfile already builds everything the
+# backend needs, so the API and the workers are the same image with a different
+# command — which is exactly the shape Fly's `processes` block expects.
+#
+# The web app is a second Fly app from this same image — see fly.web.toml.
+# Two apps rather than one, because Fly gives an app a single hostname and both
+# the gateway and the site need a public one of their own.
+#
+#   fly launch --no-deploy --copy-config --config fly.toml
+#   fly secrets set DATABASE_URL=… REDIS_URL=… API_KEYS=…
+#   fly deploy
+
+app = "averis-api"
+primary_region = "sin"          # keep this in the same region as Postgres
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  # Runs once, before the new release is released.
+  #
+  # REQUIRES committed migrations. This repository still uses `prisma db push`,
+  # and `migrate deploy` with no migrations directory exits 0 without applying
+  # anything — the app would then start against an empty schema and fail in a
+  # way that looks like a code bug. Generate a baseline first:
+  #   npx prisma migrate dev --name init   (then commit prisma/migrations)
+  #
+  # Migrations run against DIRECT_DATABASE_URL when it is set, falling back to
+  # the pooled one. Managed providers hand out two strings: a transaction-mode
+  # pooler for the app and a direct session connection. Schema changes need the
+  # session connection — a pooler can hand consecutive statements to different
+  # backends, which is not something a migration survives.
+  release_command = "sh -c 'DATABASE_URL=${DIRECT_DATABASE_URL:-$DATABASE_URL} npx prisma migrate deploy'"
+
+[env]
+  NODE_ENV = "production"
+  # Must be bullmq once the API and the workers are separate machines: the
+  # memory driver is only correct inside a single process, and with it the API
+  # would accept jobs that no worker ever sees — silently.
+  QUEUE_DRIVER = "bullmq"
+  REPPO_PROVIDER = "http"
+  LLM_PROVIDER = "mock"
+  SETTLEMENT_DRIVER = "none"
+  LOG_LEVEL = "info"
+  API_PORT = "4000"
+  API_HOST = "0.0.0.0"
+
+# Secrets, set with `fly secrets set` and never in this file:
+#   DATABASE_URL      postgres connection string
+#   REDIS_URL         must be a real TCP Redis; BullMQ uses blocking commands,
+#                     so an HTTP/REST Redis endpoint will not work
+#   API_KEYS          empty disables authentication and only logs a warning
+#   CORS_ORIGINS      the web origin; the default is "*"
+#   ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY, if agents use them
+
+[processes]
+  api = "npm run start --workspace @averis/api"
+  worker = "npm run start --workspace @averis/workers"
+
+# Only the API is behind the proxy. The workers must NOT be attached here:
+# autostop is driven by incoming requests, and a queue consumer receives none,
+# so the proxy would stop the very process that does the work.
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = false
+  min_machines_running = 1
+  processes = ["api"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "4s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+    # /health returns 503 when the database or the queue is unreachable, so a
+    # machine that boots without its dependencies is never sent traffic.
+
+# Prisma's client and the provider SDKs make 256mb tight; 512mb is the floor
+# that does not spend its life near the OOM killer.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  processes = ["api"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  processes = ["worker"]

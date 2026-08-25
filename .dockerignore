@@ -1,0 +1,33 @@
+# Secrets must never be baked into an image.
+#
+# Without this, `COPY . .` puts .env at /app/.env, where two things go wrong:
+# anyone who can pull the image reads DATABASE_URL and API_KEYS, and any
+# variable the platform forgets to set falls back silently to the development
+# value instead of failing loudly.
+.env
+.env.*
+!.env.example
+
+# The image installs its own; copying the host's would overwrite platform
+# specific binaries — Prisma's engines among them — with macOS builds.
+node_modules
+**/node_modules
+
+# Build output from the host is stale by definition; the image builds its own.
+.next
+**/.next
+dist
+**/dist
+
+.git
+.gitignore
+.github
+
+# Not needed at runtime.
+tests
+docs
+*.md
+!README.md
+
+.claude
+.DS_Store

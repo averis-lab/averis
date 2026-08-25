@@ -1,0 +1,15 @@
+{
+  "name": "@averis/reppo-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reppo Datanet integration behind the provider-neutral DataProvider interface.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@averis/types": "*",
+    "zod": "^4.4.3"
+  }
+}

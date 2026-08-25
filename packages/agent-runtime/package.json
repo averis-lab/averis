@@ -1,0 +1,25 @@
+{
+  "name": "@averis/agent-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Provider-agnostic agent runtime: LLM abstraction, tools, evidence collection, structured output.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@averis/types": "*",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@anthropic-ai/sdk": "*",
+    "@google/genai": "*",
+    "openai": "*"
+  },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": { "optional": true },
+    "openai": { "optional": true },
+    "@google/genai": { "optional": true }
+  }
+}

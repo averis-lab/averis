@@ -1,0 +1,18 @@
+{
+  "name": "@averis/workers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Lifecycle workers: job execution, evaluation, consensus, resolution.",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@averis/protocol": "*",
+    "@averis/db": "*",
+    "@averis/queue": "*",
+    "@averis/types": "*",
+    "dotenv": "^17.0.0"
+  }
+}

@@ -1,0 +1,696 @@
+// Intelligence Coordination Layer — persistence model.
+//
+// Design notes:
+//  * Datanet/DataItem rows are a *cache* of an external data network (Reppo).
+//    They are never the source of truth; `externalId` + `dataSourceId` is the
+//    natural key back to the upstream provider.
+//  * Evidence is deduplicated per job and linked to claims many-to-many, so a
+//    single retrieved pod can support several claims from several agents
+//    without duplicating provenance rows.
+//  * Reputation is stored as immutable snapshots, not a mutable score column,
+//    so agent selection can be replayed and audited at any point in time.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../packages/db/src/generated"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum JobStatus {
+  CREATED
+  QUEUED
+  ASSIGNED
+  RUNNING
+  SUBMITTED
+  VALIDATING
+  CONSENSUS
+  RESOLVED
+  FAILED
+  CANCELLED
+}
+
+enum AssignmentStatus {
+  PENDING
+  ACCEPTED
+  RUNNING
+  SUBMITTED
+  FAILED
+  TIMED_OUT
+  DECLINED
+}
+
+enum AgentStatus {
+  ACTIVE
+  PAUSED
+  SUSPENDED
+  RETIRED
+}
+
+enum EvidenceType {
+  REPPO_POD
+  REPPO_DATANET
+  ONCHAIN
+  HTTP_API
+  WEB
+  DOCUMENT
+  COMPUTATION
+  PRIOR_INTELLIGENCE
+}
+
+enum ClaimKind {
+  FACT
+  ASSESSMENT
+  PREDICTION
+  RISK
+  RECOMMENDATION
+}
+
+enum PredictionOutcome {
+  PENDING
+  TRUE
+  FALSE
+  UNRESOLVABLE
+  VOID
+}
+
+enum RewardRole {
+  AGENT
+  VALIDATOR
+  PROTOCOL
+  TREASURY
+}
+
+enum RewardStatus {
+  PENDING
+  APPROVED
+  SETTLED
+  FORFEITED
+}
+
+enum TransactionStatus {
+  PENDING
+  SIMULATED
+  BROADCAST
+  CONFIRMED
+  FAILED
+}
+
+enum DataSourceKind {
+  REPPO
+  HTTP
+  ONCHAIN
+  UPLOAD
+  CUSTOM
+}
+
+// ─── Identity ───────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  handle    String?  @unique
+  walletAddress String? @unique
+  apiKeyHash String? @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agents    Agent[]
+  operators Operator[]
+  jobs      Job[]
+
+  @@map("users")
+}
+
+/// An autonomous node that discovers jobs, runs agents and manages a budget.
+model Operator {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  /// Serialized StrategyConfig — domains, thresholds, cadence.
+  strategy  Json     @default("{}")
+  /// Serialized BudgetPolicy — daily/weekly/per-job caps in USDC.
+  budget    Json     @default("{}")
+
+  enabled   Boolean  @default(true)
+  lastRunAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agents    Agent[]
+  spends    BudgetSpend[]
+
+  @@map("operators")
+}
+
+// ─── Agent registry ─────────────────────────────────────────────────────────
+
+model Agent {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  ownerId     String?
+  owner       User?       @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  operatorId  String?
+  operator    Operator?   @relation(fields: [operatorId], references: [id], onDelete: SetNull)
+
+  status      AgentStatus @default(ACTIVE)
+
+  /// Runtime binding: which LLM provider/model and which tools it may use.
+  modelProvider String    @default("mock")
+  modelName     String    @default("mock-analyst")
+  /// Tool names this agent is permitted to invoke (least privilege).
+  tools         String[]  @default([])
+  /// Free-form runtime knobs (temperature, maxSteps, systemPromptOverride…).
+  runtimeConfig Json      @default("{}")
+
+  /// Price the agent charges per completed job, in USDC.
+  pricePerJob   Decimal   @default(0) @db.Decimal(18, 6)
+  maxConcurrent Int       @default(3)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  capabilities AgentCapability[]
+  assignments  JobAssignment[]
+  outputs      AgentOutput[]
+  evaluations  Evaluation[]      @relation("EvaluatorAgent")
+  reputation   ReputationScore[]
+  rewards      Reward[]
+  contributions ConsensusContribution[]
+
+  @@index([status])
+  @@map("agents")
+}
+
+/// A capability is a (domain, skill) pair with a self-declared proficiency that
+/// is continuously corrected by measured performance in that domain.
+model AgentCapability {
+  id        String @id @default(cuid())
+  agentId   String
+  agent     Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  /// Broad area, e.g. "crypto", "defi", "security", "research".
+  domain    String
+  /// Specific skill inside the domain, e.g. "liquidity-analysis".
+  skill     String?
+  /// Declared proficiency 0..1. Selection blends this with measured accuracy.
+  declared  Float  @default(0.5)
+
+  createdAt DateTime @default(now())
+
+  @@unique([agentId, domain, skill])
+  @@index([domain])
+  @@map("agent_capabilities")
+}
+
+// ─── External data networks ─────────────────────────────────────────────────
+
+/// A pluggable upstream data network. Reppo is one row; others can be added
+/// without touching the protocol core.
+model DataSource {
+  id        String         @id @default(cuid())
+  kind      DataSourceKind
+  name      String         @unique
+  baseUrl   String?
+  config    Json           @default("{}")
+  enabled   Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  datanets  Datanet[]
+  dataItems DataItem[]
+
+  @@map("data_sources")
+}
+
+/// Cached metadata for an upstream curated dataset (a Reppo Datanet / subnet).
+model Datanet {
+  id           String     @id @default(cuid())
+  dataSourceId String
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+
+  /// Upstream identifier (Reppo subnet id).
+  externalId   String
+  name         String
+  description  String?
+  /// Domain tags derived from the datanet, used for job → datanet matching.
+  domains      String[]   @default([])
+
+  /// Curation signal snapshot: upvote/downvote volume, epoch, status.
+  curation     Json       @default("{}")
+  /// The datanet's own published standard at the time it was read. Snapshotted
+  /// rather than re-fetched because a datanet can rewrite its rubric at any
+  /// time; without this an old job's evaluation could not be reproduced.
+  rubric       Json       @default("{}")
+  raw          Json?
+  syncedAt     DateTime   @default(now())
+
+  dataItems    DataItem[]
+
+  @@unique([dataSourceId, externalId])
+  @@index([syncedAt])
+  @@map("datanets")
+}
+
+/// Cached metadata for one curated item (a Reppo pod).
+model DataItem {
+  id           String     @id @default(cuid())
+  dataSourceId String
+  dataSource   DataSource @relation(fields: [dataSourceId], references: [id], onDelete: Cascade)
+  datanetId    String?
+  datanet      Datanet?   @relation(fields: [datanetId], references: [id], onDelete: SetNull)
+
+  externalId   String
+  title        String
+  content      String?
+  url          String?
+
+  /// Normalized 0..1 quality derived from upstream curation votes.
+  qualityScore Float      @default(0.5)
+  curation     Json       @default("{}")
+  raw          Json?
+  publishedAt  DateTime?
+  syncedAt     DateTime   @default(now())
+
+  evidence     Evidence[]
+
+  @@unique([dataSourceId, externalId])
+  @@index([datanetId])
+  @@map("data_items")
+}
+
+// ─── Intelligence jobs ──────────────────────────────────────────────────────
+
+model Job {
+  id          String    @id @default(cuid())
+  requesterId String?
+  requester   User?     @relation(fields: [requesterId], references: [id], onDelete: SetNull)
+
+  /// Job archetype, e.g. "asset-analysis", "dataset-evaluation", "anomaly-detection".
+  type        String
+  query       String
+  /// Optional subject of the job — a ticker, address, dataset id.
+  target      String?
+
+  requiredCapabilities String[] @default([])
+  requiredAgents       Int      @default(3)
+  minimumConfidence    Float?
+
+  /// Total budget in USDC available to this job.
+  budget      Decimal   @default(0) @db.Decimal(18, 6)
+  deadline    DateTime?
+
+  status      JobStatus @default(CREATED)
+  /// Populated when status = FAILED.
+  failureReason String?
+
+  /// Datanet ids (internal) discovered as relevant during job preparation.
+  datanetIds  String[]  @default([])
+  metadata    Json      @default("{}")
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  resolvedAt  DateTime?
+
+  assignments JobAssignment[]
+  outputs     AgentOutput[]
+  evidence    Evidence[]
+  evaluations Evaluation[]
+  consensus   ConsensusResult?
+  rewards     Reward[]
+  events      JobEvent[]
+  spends      BudgetSpend[]
+
+  @@index([status, createdAt])
+  @@index([type])
+  @@map("jobs")
+}
+
+/// Append-only lifecycle audit trail. Every status transition writes one row.
+model JobEvent {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  from      JobStatus?
+  to        JobStatus
+  reason    String?
+  detail    Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([jobId, createdAt])
+  @@map("job_events")
+}
+
+model JobAssignment {
+  id        String           @id @default(cuid())
+  jobId     String
+  job       Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  agentId   String
+  agent     Agent            @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  status    AssignmentStatus @default(PENDING)
+  /// Why the selector picked this agent — score breakdown, for auditability.
+  selectionScore Float       @default(0)
+  selectionDetail Json       @default("{}")
+
+  startedAt DateTime?
+  endedAt   DateTime?
+  error     String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  output    AgentOutput?
+
+  @@unique([jobId, agentId])
+  @@index([status])
+  @@map("job_assignments")
+}
+
+// ─── Structured intelligence output ─────────────────────────────────────────
+
+model AgentOutput {
+  id           String        @id @default(cuid())
+  jobId        String
+  job          Job           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  agentId      String
+  agent        Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  assignmentId String        @unique
+  assignment   JobAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  summary      String
+  /// Agent's self-reported confidence in the whole result, 0..1.
+  confidence   Float
+  metrics      Json          @default("{}")
+  recommendation Json?
+  risks        Json          @default("[]")
+
+  /// Execution accounting — drives cost attribution and budget reconciliation.
+  tokensIn     Int           @default(0)
+  tokensOut    Int           @default(0)
+  costUsd      Decimal       @default(0) @db.Decimal(18, 6)
+  durationMs   Int           @default(0)
+  toolCalls    Json          @default("[]")
+
+  createdAt    DateTime      @default(now())
+
+  claims       Claim[]
+  evaluations  Evaluation[]
+  contributions ConsensusContribution[]
+
+  @@index([jobId])
+  @@map("agent_outputs")
+}
+
+model Claim {
+  id         String      @id @default(cuid())
+  outputId   String
+  output     AgentOutput @relation(fields: [outputId], references: [id], onDelete: Cascade)
+
+  kind       ClaimKind   @default(ASSESSMENT)
+  statement  String
+  confidence Float
+  /// Stable hash of the normalized statement, used to cluster equivalent
+  /// claims made independently by different agents.
+  fingerprint String
+  /// Ordinal position in the agent's output, preserved for reproducibility.
+  position   Int         @default(0)
+
+  createdAt  DateTime    @default(now())
+
+  evidence   ClaimEvidence[]
+  prediction Prediction?
+
+  @@index([outputId])
+  @@index([fingerprint])
+  @@map("claims")
+}
+
+model Evidence {
+  id         String       @id @default(cuid())
+  jobId      String
+  job        Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  type       EvidenceType
+  /// Canonical source locator — URL, chain address, or reppo://datanet/pod id.
+  source     String
+  title      String?
+  content    String?
+  /// Content hash for tamper-evidence and cross-agent deduplication.
+  contentHash String
+  metadata   Json         @default("{}")
+  /// Upstream curation-derived reliability, 0..1.
+  reliability Float       @default(0.5)
+
+  dataItemId String?
+  dataItem   DataItem?    @relation(fields: [dataItemId], references: [id], onDelete: SetNull)
+
+  retrievedAt DateTime    @default(now())
+
+  claims     ClaimEvidence[]
+
+  @@unique([jobId, contentHash])
+  @@index([jobId])
+  @@map("evidence")
+}
+
+/// Join table: one piece of evidence can support or contradict many claims.
+model ClaimEvidence {
+  claimId    String
+  claim      Claim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  evidenceId String
+  evidence   Evidence @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  /// +1 supports, -1 contradicts. Lets consensus surface both sides.
+  stance     Int      @default(1)
+  note       String?
+
+  @@id([claimId, evidenceId])
+  @@map("claim_evidence")
+}
+
+// ─── Evaluation, consensus, reputation ──────────────────────────────────────
+
+/// One agent (or the deterministic evaluator) scoring another agent's output.
+model Evaluation {
+  id          String      @id @default(cuid())
+  jobId       String
+  job         Job         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  outputId    String
+  output      AgentOutput @relation(fields: [outputId], references: [id], onDelete: Cascade)
+
+  /// Null when produced by the deterministic (non-agent) evaluator.
+  evaluatorAgentId String?
+  evaluatorAgent   Agent? @relation("EvaluatorAgent", fields: [evaluatorAgentId], references: [id], onDelete: SetNull)
+  evaluatorKind    String @default("deterministic")
+
+  evidenceQuality  Float
+  internalConsistency Float
+  specificity      Float
+  /// Agreement with the rest of the cohort, 0..1.
+  corroboration    Float
+  /**
+   * Overlap between the output's vocabulary and the terms the datanet's own
+   * rubric says matter. Term coverage, not comprehension — weighted lightly
+   * for that reason, and neutral (0.5) when no rubric is available.
+   */
+  rubricAlignment  Float  @default(0.5)
+  overall          Float
+  notes            Json   @default("{}")
+
+  createdAt   DateTime @default(now())
+
+  @@unique([outputId, evaluatorAgentId, evaluatorKind])
+  @@index([jobId])
+  @@map("evaluations")
+}
+
+model ConsensusResult {
+  id             String @id @default(cuid())
+  jobId          String @unique
+  job            Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  /// Identifier of the weighting strategy that produced this result.
+  strategy       String
+  strategyConfig Json   @default("{}")
+
+  summary        String
+  /// Confidence of the merged result, 0..1.
+  confidence     Float
+  /// Degree of inter-agent agreement, 0..1.
+  consensusScore Float
+  /// Merged claims with per-claim agreement and weight, as ConsensusClaim[].
+  claims         Json   @default("[]")
+  metrics        Json   @default("{}")
+  recommendation Json?
+  risks          Json   @default("[]")
+  /// Claims where agents materially disagreed — surfaced, never averaged away.
+  disagreements  Json   @default("[]")
+
+  createdAt      DateTime @default(now())
+
+  contributions  ConsensusContribution[]
+
+  @@map("consensus_results")
+}
+
+model ConsensusContribution {
+  id         String          @id @default(cuid())
+  consensusId String
+  consensus  ConsensusResult @relation(fields: [consensusId], references: [id], onDelete: Cascade)
+  agentId    String
+  agent      Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  outputId   String
+  output     AgentOutput     @relation(fields: [outputId], references: [id], onDelete: Cascade)
+
+  /// Normalized weight this agent carried in the merge, 0..1.
+  weight     Float
+  /// Share of merged claims this agent agreed with, 0..1.
+  agreement  Float
+  /// Human-readable breakdown of how the weight was derived.
+  breakdown  Json            @default("{}")
+
+  @@unique([consensusId, outputId])
+  @@map("consensus_contributions")
+}
+
+/// Immutable reputation snapshot. `domain = null` is the overall score.
+model ReputationScore {
+  id         String   @id @default(cuid())
+  agentId    String
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  domain     String?
+
+  overall    Float
+  accuracy   Float
+  calibration Float
+  consistency Float
+  evidenceQuality Float
+
+  /// Number of resolved observations behind this snapshot.
+  sampleSize Int      @default(0)
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([agentId, domain, createdAt])
+  @@map("reputation_scores")
+}
+
+// ─── Predictions ────────────────────────────────────────────────────────────
+
+model Prediction {
+  id         String            @id @default(cuid())
+  claimId    String            @unique
+  claim      Claim             @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  statement  String
+  confidence Float
+  /// Machine-checkable resolution spec: { metric, operator, threshold, source }.
+  criteria   Json              @default("{}")
+  deadline   DateTime
+
+  outcome    PredictionOutcome @default(PENDING)
+  createdAt  DateTime          @default(now())
+
+  resolution PredictionResolution?
+
+  @@index([outcome, deadline])
+  @@map("predictions")
+}
+
+model PredictionResolution {
+  id           String            @id @default(cuid())
+  predictionId String            @unique
+  prediction   Prediction        @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  outcome      PredictionOutcome
+  observedValue Json?
+  /// How the outcome was determined — "oracle:<name>", "manual:<userId>".
+  resolvedBy   String
+  evidence     Json              @default("[]")
+  /// Brier contribution for calibration tracking: (confidence - actual)^2.
+  brierScore   Float?
+  resolvedAt   DateTime          @default(now())
+
+  @@map("prediction_resolutions")
+}
+
+// ─── Economics ──────────────────────────────────────────────────────────────
+
+model Reward {
+  id        String       @id @default(cuid())
+  jobId     String
+  job       Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  agentId   String?
+  agent     Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+
+  role      RewardRole
+  amount    Decimal      @db.Decimal(18, 6)
+  currency  String       @default("USDC")
+  status    RewardStatus @default(PENDING)
+  /// How the split was computed — for auditability of the reward engine.
+  basis     Json         @default("{}")
+
+  createdAt DateTime     @default(now())
+  settledAt DateTime?
+
+  transaction Transaction?
+
+  @@index([jobId])
+  @@index([status])
+  @@map("rewards")
+}
+
+model Transaction {
+  id        String            @id @default(cuid())
+  rewardId  String?           @unique
+  reward    Reward?           @relation(fields: [rewardId], references: [id], onDelete: SetNull)
+
+  chain     String            @default("solana")
+  /// Intent is recorded before signing; the policy engine gates the transition.
+  intent    Json              @default("{}")
+  simulation Json?
+  signature String?           @unique
+  status    TransactionStatus @default(PENDING)
+  error     String?
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@index([status])
+  @@map("transactions")
+}
+
+/// Ledger of committed spend. Written *before* execution by the budget guard,
+/// then reconciled with the real cost, so no action can outrun its budget.
+model BudgetSpend {
+  id         String   @id @default(cuid())
+  operatorId String?
+  operator   Operator? @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  jobId      String?
+  job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  /// "llm" | "tool" | "settlement"
+  category   String
+  /// Amount reserved up-front.
+  reserved   Decimal  @db.Decimal(18, 6)
+  /// Actual amount after execution; null until reconciled.
+  actual     Decimal? @db.Decimal(18, 6)
+  currency   String   @default("USD")
+  detail     Json     @default("{}")
+
+  createdAt  DateTime @default(now())
+  settledAt  DateTime?
+
+  @@index([operatorId, createdAt])
+  @@index([jobId])
+  @@map("budget_spends")
+}

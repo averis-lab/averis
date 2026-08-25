@@ -1,0 +1,657 @@
+/*
+ * Averis landing hero.
+ *
+ * Tokens live on .root rather than :root so nothing leaks into the product
+ * routes, and the one-frame desktop lock is applied to .root instead of
+ * html/body for the same reason — a CSS module that reaches for :global(html)
+ * would follow the user into the dashboard.
+ */
+
+.root {
+  --bg: #000000;
+  --text: #ffffff;
+  --muted: #9a9a9a;
+  --stat: #d8d8d8;
+  --border: rgba(255, 255, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.12);
+
+  /* Red is the only accent on the page. Used on the serif emphasis, the glows
+     and the badge — never on body copy, borders or large fills, which is what
+     keeps a red-on-black palette from reading as alarm rather than brand. */
+  --red: #e5484d;
+  --red-bright: #ff6166;
+  --red-deep: #7a1a1f;
+  --red-glow: rgba(229, 72, 77, 0.38);
+  --red-glow-soft: rgba(229, 72, 77, 0.22);
+
+  --logo: 15.5px;
+  --logo-mark: 22px;
+  --nav: 14px;
+  --nav-h: 40px;
+  --btn: 13.5px;
+  --btn-h: 40px;
+  --hero-btn-h: 42px;
+  --h1: 48px;
+  --lede: 15.5px;
+  --badge: 12.5px;
+  --stat-size: 13.5px;
+  --header-y: 22px;
+  /* What the sticky bar occupies; the hero subtracts it so the fold lands
+     where it did. Built from tokens, so it tracks every breakpoint. */
+  --header-h: calc(var(--header-y) + var(--btn-h) + 10px);
+  --header-x: 40px;
+  --stats-x: 72px;
+  --stats-y: 36px;
+  --hero-gap: 85px;
+  --copy-max: 860px;
+  --lede-max: 470px;
+
+  --ui: var(--font-inter), "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --serif: var(--font-instrument-serif), "Instrument Serif", "Times New Roman", Times, serif;
+
+  position: relative;
+  background: #000000;
+  background: var(--bg, #000000);
+  color: #ffffff;
+  color: var(--text, #ffffff);
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /*
+   * `clip`, not `hidden`.
+   *
+   * A non-visible overflow on one axis makes the other compute to `auto`, which
+   * turns this element into a scroll container — and a scroll container becomes
+   * the sticky ancestor for everything inside it. Since .root grows to fit its
+   * content and never scrolls itself, `hidden` here silently stopped the navbar
+   * from sticking at all. `clip` trims the same overflow without creating a
+   * scroll container, so sticky keeps measuring against the viewport.
+   *
+   * `hidden` stays first as the fallback for browsers without `clip`: they lose
+   * the sticky header, never the horizontal-scroll fix.
+   */
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+/* :where() keeps these resets at zero specificity. Scoping them as `.root a`
+   would score (0,1,1) and outrank .btnSolid's own `color`, painting the solid
+   buttons white-on-white. */
+:where(.root) :where(a) { color: inherit; text-decoration: none; }
+:where(.root) :where(button) { font-family: inherit; }
+
+/* ─── Layer 2: hero backdrop ─────────────────────────────────────────────── */
+.heroPhoto {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 78% at 50% 108%, rgba(200, 45, 55, 0.22) 0%, rgba(122, 26, 31, 0.10) 34%, rgba(0, 0, 0, 0) 68%),
+    radial-gradient(72% 52% at 50% 96%, rgba(255, 236, 236, 0.10) 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(90% 60% at 12% 6%, rgba(150, 30, 40, 0.10) 0%, rgba(0, 0, 0, 0) 58%),
+    radial-gradient(80% 55% at 92% 12%, rgba(130, 28, 36, 0.09) 0%, rgba(0, 0, 0, 0) 60%),
+    #000000;
+  animation: photo-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/*
+ * The footage fills the frame and is cropped rather than letterboxed, because
+ * a background that shows its own edges stops reading as a background. It
+ * paints below .heroPhoto::after: a pseudo-element is drawn after its
+ * element's children, which is exactly the ordering the scrim needs.
+ */
+.heroVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Nothing here should invite interaction; the hero copy sits above it. */
+  pointer-events: none;
+}
+
+/*
+ * The scrim, and the seam.
+ *
+ * Two jobs at once. At the top it keeps the header and the headline readable
+ * over whatever the footage is doing. At the bottom it has to reach *solid*
+ * black, because the sections below this layer are solid black: stopping short
+ * of it — as this did at 0.42 — leaves the last frame of video meeting the
+ * page at a visible horizontal edge. Landing on #000 at 100% means the video
+ * dissolves into the page instead of ending against it.
+ */
+.heroPhoto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.58) 0%,
+    rgba(0, 0, 0, 0.12) 34%,
+    rgba(0, 0, 0, 0.44) 62%,
+    rgba(0, 0, 0, 0.84) 85%,
+    #000000 100%
+  );
+}
+
+/* ─── Layer 4: grain ─────────────────────────────────────────────────────── */
+.grain {
+  position: fixed;
+  inset: -50%;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.038;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ─── Layer 3: page shell ────────────────────────────────────────────────── */
+.page {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: calc(100vh - var(--header-h));
+  min-height: calc(100dvh - var(--header-h));
+}
+
+/* ─── Hero ───────────────────────────────────────────────────────────────── */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px 24px var(--hero-gap);
+  min-height: 0;
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: var(--copy-max);
+  width: 100%;
+}
+
+.badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+  padding: 9px 15px;
+  border: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #8f3438 0%, #2a1416 52%, #0a0506 100%);
+  color: #f4eaea;
+  font-size: var(--badge);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* A highlight crossing the badge every few seconds. Long pause, short sweep:
+   a continuous shimmer turns a label into an advertisement. */
+.badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    100deg,
+    transparent 24%,
+    rgba(255, 255, 255, 0.10) 42%,
+    rgba(255, 255, 255, 0.26) 50%,
+    rgba(255, 255, 255, 0.10) 58%,
+    transparent 76%
+  );
+  transform: translateX(-115%);
+  animation: badge-shine 6.5s cubic-bezier(0.4, 0, 0.2, 1) 2.4s infinite;
+}
+.badgeStar {
+  display: block;
+  flex: none;
+  filter: drop-shadow(0 0 4px rgba(255, 120, 125, 0.6));
+  animation: in-star 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+}
+
+.headline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--ui);
+  font-size: var(--h1);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+  color: #fff;
+}
+.headlineLine { display: block; overflow: hidden; padding: 0.06em 0.15em 0.14em; }
+.headline em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.08em;
+  letter-spacing: -0.03em;
+  color: var(--red);
+  animation: in-em 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.72s both;
+}
+
+.lede {
+  max-width: var(--lede-max);
+  margin-top: 18px;
+  color: #9a9a9a;
+  font-size: var(--lede);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.015em;
+  animation-duration: 1.25s;
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+/* ─── Stats ──────────────────────────────────────────────────────────────── */
+.stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 var(--stats-x) var(--stats-y);
+  padding-bottom: max(var(--stats-y), env(safe-area-inset-bottom));
+  color: #d8d8d8;
+}
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: var(--stat-size);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+.statIcon { width: 20px; height: 20px; flex: none; display: block; }
+.statIconWide { width: 38px; height: 21px; flex: none; display: block; }
+
+/* ─── Menu backdrop ──────────────────────────────────────────────────────── */
+
+/* ─── Entrance motion ────────────────────────────────────────────────────── */
+.appear {
+  opacity: 1;
+  animation-duration: 1.05s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-delay: var(--d, 0.08s);
+}
+.appearScale { animation-name: in-scale; }
+.appearSoft  { animation-name: in-soft; }
+.appearMask  { animation-name: in-mask; }
+.appearPop   { animation-name: in-pop; }
+.appearBtn   { animation-name: in-btn; }
+.appearSide  { animation-name: in-side; }
+.appearStat  { animation-name: in-stat; }
+
+.appear.isIn,
+.heroPhoto.isIn {
+  animation: none;
+  opacity: 1;
+  transform: none;
+  clip-path: none;
+  filter: none;
+}
+
+@keyframes photo-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes badge-shine {
+  0% { transform: translateX(-115%); }
+  /* The sweep occupies the first fifth of the cycle; the rest is stillness. */
+  22%, 100% { transform: translateX(115%); }
+}
+@keyframes in-scale { from { opacity: 0; transform: scale(0.84); } to { opacity: 1; transform: scale(1); } }
+@keyframes in-soft  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes in-mask  { from { opacity: 0; transform: translateY(40%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes in-pop {
+  0%   { opacity: 0; transform: scale(0.9); }
+  70%  { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes in-btn  { from { opacity: 0; transform: translateY(18px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes in-side { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes in-stat { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes in-star {
+  0%   { opacity: 0; transform: scale(0.2) rotate(-50deg); }
+  65%  { opacity: 1; transform: scale(1.2) rotate(8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes in-em {
+  from { opacity: 0.35; filter: blur(4px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A looping video is motion whether or not it was asked for. Hiding it falls
+     back to the gradient, which is what this layer painted before. */
+  .heroVideo { display: none; }
+  .badge::after { animation: none; opacity: 0; }
+  .root *, .root *::before, .root *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  .appear, .heroPhoto, .headline em, .badgeStar {
+    opacity: 1;
+    transform: none;
+    clip-path: none;
+    filter: none;
+  }
+}
+
+/* ─── ≥1600 ──────────────────────────────────────────────────────────────── */
+@media (min-width: 1600px) {
+  .root {
+    --logo: 17px; --logo-mark: 24px; --nav: 15px; --nav-h: 44px;
+    --btn: 15px; --btn-h: 44px; --hero-btn-h: 48px;
+    --h1: 64px; --lede: 18px; --badge: 13.5px; --stat-size: 15px;
+    --header-y: 28px; --header-x: 64px; --stats-x: 96px; --stats-y: 44px;
+    --copy-max: 980px; --lede-max: 540px;
+  }
+  .badge { margin-bottom: 26px; }
+  .lede { margin-top: 22px; }
+  .heroActions { margin-top: 30px; gap: 12px; }
+  .statIcon { width: 22px; height: 22px; }
+  .statIconWide { width: 45px; height: 24px; }
+}
+
+/* ─── ≥1920 ──────────────────────────────────────────────────────────────── */
+@media (min-width: 1920px) {
+  .root {
+    --logo: 18px; --logo-mark: 26px; --nav: 16px; --nav-h: 48px;
+    --btn: 16px; --btn-h: 48px; --hero-btn-h: 52px;
+    --h1: 76px; --lede: 20px; --badge: 14.5px; --stat-size: 16px;
+    --header-y: 32px; --header-x: 80px; --stats-x: 120px; --stats-y: 52px;
+    --copy-max: 1120px; --lede-max: 620px;
+  }
+  .btn { padding: 0 22px; }
+  .heroActions .btn { padding: 0 22px; }
+  .badge { padding: 10px 15px; }
+  .statIconWide { width: 48px; height: 26px; }
+}
+
+/* ─── ≥2560 ──────────────────────────────────────────────────────────────── */
+@media (min-width: 2560px) {
+  .root {
+    --h1: 88px; --lede: 22px; --header-x: 120px; --stats-x: 160px;
+    --copy-max: 1280px; --lede-max: 680px;
+  }
+}
+
+/* ─── 1280–1599 ──────────────────────────────────────────────────────────── */
+@media (min-width: 1280px) and (max-width: 1599px) {
+  .root { --h1: 54px; --lede: 16px; --header-x: 48px; --stats-x: 80px; --copy-max: 900px; }
+}
+
+/* ─── 901–1279 ───────────────────────────────────────────────────────────── */
+@media (min-width: 901px) and (max-width: 1279px) {
+  .root {
+    --logo: 15px; --nav: 13px; --nav-h: 36px;
+    --btn: 13px; --btn-h: 38px; --hero-btn-h: 40px;
+    --h1: 42px; --lede: 15px; --badge: 12px; --stat-size: 12.5px;
+    --header-y: 16px; --header-x: 28px; --stats-x: 36px; --stats-y: 28px;
+    --hero-gap: 64px; --copy-max: 760px; --lede-max: 440px;
+  }
+  .badge { margin-bottom: 16px; }
+  .lede { margin-top: 14px; }
+  .heroActions { margin-top: 20px; }
+}
+
+/* ─── Short viewports ────────────────────────────────────────────────────── */
+@media (min-width: 901px) and (max-height: 850px) {
+  .root { --header-y: 14px; --stats-y: 24px; --hero-gap: 48px; --h1: 40px; }
+  .badge { margin-bottom: 12px; }
+  .lede { margin-top: 12px; }
+  .heroActions { margin-top: 16px; }
+}
+@media (min-width: 901px) and (max-height: 720px) {
+  .root {
+    --h1: 34px; --lede: 14px; --hero-gap: 32px; --stats-y: 18px;
+    --nav-h: 30px; --btn-h: 34px; --hero-btn-h: 36px;
+  }
+  .badge { margin-bottom: 8px; }
+}
+
+/* ─── ≥901 desktop lock: one frame, no scroll ────────────────────────────── */
+@media (min-width: 901px) {
+  /* The hero fills exactly one viewport; explanatory sections follow below, so
+     the page scrolls rather than locking to a single frame. */
+  .page { height: 100vh; height: 100dvh; }
+}
+
+/* ─── ≤900 phone ─────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .root {
+    overflow-x: hidden;
+    overflow-x: clip;
+
+    --logo: 16px; --btn: 15px; --btn-h: 46px; --hero-btn-h: 48px;
+    --h1: 36px; --lede: 16.5px; --badge: 13.5px; --stat-size: 15px;
+    --header-y: 16px; --header-x: 18px; --stats-x: 20px; --stats-y: 28px;
+    --hero-gap: 36px;
+  }
+
+  .hero { padding: 20px 20px 64px; align-items: flex-end; }
+  .heroCopy, .lede { max-width: 100%; }
+
+  .stats { flex-direction: column; align-items: center; gap: 16px; }
+  .stat { white-space: normal; }
+}
+
+/* ─── ≤560 ───────────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .root { --h1: 34px; --lede: 16px; --header-x: 16px; }
+  .heroActions { flex-direction: column; }
+  .heroActions .btn { width: 100%; }
+}
+
+
+/* ─── Sections below the hero ────────────────────────────────────────────── */
+
+.section {
+  position: relative;
+  z-index: 1;
+  padding: var(--section-y, 104px) var(--stats-x) 0;
+}
+
+/* Separates the hero frame from the reading matter without a heavy divider. */
+.section + .section,
+.section + .closing {
+  padding-top: var(--section-gap-y, 88px);
+}
+
+.sectionHead {
+  max-width: 620px;
+  margin-bottom: var(--section-gap, 46px);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.eyebrow::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red-glow-soft);
+}
+
+.sectionTitle {
+  font-size: var(--section-title, 30px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.22;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.sectionLede {
+  margin-top: 15px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.62;
+  letter-spacing: -0.015em;
+}
+
+/* Columns are separated by hairlines rather than boxed into cards; the first
+   column sits flush to the section edge so the grid lines up with the header
+   and the stats row above it. */
+.grid {
+  display: grid;
+  border-top: 1px solid var(--border-soft);
+}
+.steps { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.principles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.cell {
+  padding: 30px 30px 34px 26px;
+  border-left: 1px solid var(--border-soft);
+  transition: background-color 0.35s ease;
+}
+.cell:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+.cell:hover { background-color: rgba(255, 255, 255, 0.022); }
+
+.stepIndex {
+  display: block;
+  margin-bottom: 15px;
+  color: var(--red);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.cellTitle {
+  margin-bottom: 9px;
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+
+.cellBody {
+  max-width: 38ch;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.64;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Closing ────────────────────────────────────────────────────────────── */
+.closing {
+  position: relative;
+  z-index: 1;
+  padding: var(--section-y, 104px) var(--stats-x) 112px;
+  text-align: center;
+}
+
+.closingInner {
+  padding-top: var(--section-y, 104px);
+  border-top: 1px solid var(--border-soft);
+}
+
+.closingTitle {
+  max-width: 20ch;
+  margin: 0 auto;
+  font-size: var(--closing-title, 34px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.18;
+  color: #fff;
+  text-wrap: balance;
+}
+.closingTitle em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.08em;
+  letter-spacing: -0.03em;
+  color: var(--red);
+}
+
+.closingActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 30px;
+}
+.closingActions .btn { height: var(--hero-btn-h); padding: 0 18px; }
+
+/* The only link in the closing block; it has to read as one without turning
+   the sentence into a row of coloured words. */
+.footnoteLink {
+  color: #b9b9c0;
+  text-decoration: underline;
+  text-decoration-color: rgba(229, 72, 77, 0.55);
+  text-underline-offset: 3px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+.footnoteLink:hover {
+  color: #fff;
+  text-decoration-color: var(--red);
+}
+
+.footnote {
+  max-width: 60ch;
+  margin: 36px auto 0;
+  color: #6f6f74;
+  font-size: 12px;
+  line-height: 1.62;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 1600px) {
+  .root { --section-y: 128px; --section-gap-y: 108px; --section-title: 36px; --closing-title: 42px; }
+}
+@media (min-width: 1920px) {
+  .root { --section-y: 144px; --section-gap-y: 124px; --section-title: 40px; --closing-title: 48px; }
+}
+
+@media (max-width: 1100px) {
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Second row starts a new left edge, and the first row gains a rule below. */
+  .steps .cell:nth-child(3) { padding-left: 0; border-left: 0; }
+  .steps .cell:nth-child(-n + 2) { border-bottom: 1px solid var(--border-soft); }
+}
+
+@media (max-width: 900px) {
+  .root { --section-y: 72px; --section-gap-y: 64px; --section-title: 25px; --closing-title: 27px; }
+  .section, .closing { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
+  .closing { padding-bottom: 84px; }
+  .sectionHead { margin-bottom: 34px; }
+
+  .steps, .principles { grid-template-columns: minmax(0, 1fr); }
+  .cell {
+    padding: 24px 0 26px;
+    border-left: 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .cell:hover { background-color: transparent; }
+  .grid .cell:last-child { border-bottom: 0; }
+  .closingInner { padding-top: var(--section-y, 72px); }
+}

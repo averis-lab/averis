@@ -1,0 +1,345 @@
+/*
+ * Site navigation.
+ *
+ * Self-contained: this file owns every class the component renders, so the nav
+ * can be dropped onto any page without dragging a page's stylesheet along with
+ * it. It reads the design tokens (--logo, --nav-h, --header-x …) where they are
+ * available and carries a literal fallback for each, so it still renders
+ * correctly outside the landing shell that defines them.
+ */
+
+/* ─── The sticky bar ─────────────────────────────────────────────────────── */
+/*
+ * Sticky is bounded by its containing block, so this must be a child of an
+ * element that spans the document — not of a one-viewport-tall frame, where it
+ * would come unstuck the moment the first screen scrolled past.
+ *
+ * Transparent at rest so a hero reads edge to edge; the background arrives only
+ * once there is content behind it worth separating from.
+ */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  transition:
+    background-color 0.32s ease,
+    backdrop-filter 0.32s ease,
+    box-shadow 0.32s ease;
+}
+.scrolled {
+  background: rgba(6, 6, 7, 0.72);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: 0 1px 0 var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+/* Document pages carry the reading gutter on the bar, so the row inside can
+   keep sharing the text column's edges. */
+.barDoc {
+  padding-inline: var(--stats-x, 72px);
+}
+
+/* ─── The row ────────────────────────────────────────────────────────────── */
+.inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: var(--header-y, 22px) var(--header-x, 40px) 10px;
+}
+
+/*
+ * Document layout.
+ *
+ * The landing row is measured against the viewport because it sits over a
+ * full-bleed hero. A document is a centred column, so a row measured against
+ * the viewport drifts further from the prose the wider the screen gets — 90px
+ * apart at 1440, 290px at 1920. This variant shares the column's edges.
+ */
+.innerDoc {
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-left: 0;
+  padding-right: 0;
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+/* ─── Logo ───────────────────────────────────────────────────────────────── */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  justify-self: start;
+  color: #fff;
+  font-size: var(--logo, 15.5px);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+.logoSuffix {
+  font-weight: 400;
+}
+
+/* ─── Links ──────────────────────────────────────────────────────────────── */
+.links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: center;
+}
+
+.links a {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  height: var(--nav-h, 40px);
+  padding: 0 18px;
+  border-radius: 7px;
+  border: 1px solid rgba(198, 198, 198, 0.55);
+  background: linear-gradient(105deg, #050505 0%, #2a2a2a 48%, #4a4a4a 100%);
+  color: #f3f3f3;
+  font-size: var(--nav, 14px);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+/* A highlight that crosses the pill on hover. */
+.links a::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.16) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+}
+.links a:hover {
+  border-color: rgba(255, 168, 170, 0.7);
+  background: linear-gradient(105deg, #150c0d 0%, #3a2527 45%, #63393c 100%);
+  box-shadow: 0 0 18px var(--red-glow-soft, rgba(229, 72, 77, 0.22));
+}
+.links a:hover::before {
+  transform: translateX(120%);
+}
+
+/* ─── Call to action ─────────────────────────────────────────────────────── */
+/*
+ * Its own button rather than the page's shared one: borrowing that class was
+ * the last thread tying this component to a stylesheet it does not own.
+ */
+.cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: end;
+  height: var(--btn-h, 40px);
+  padding: 0 16px;
+  border-radius: 6px;
+  border: 1px solid #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #e7e7e7 48%, #cfcfcf 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  color: #111;
+  font-size: var(--btn, 13.5px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: box-shadow 0.35s ease, filter 0.35s ease;
+}
+.cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.45) 48%, transparent 76%);
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+}
+.cta:hover {
+  box-shadow: inset 0 1px 0 #fff, 0 0 22px rgba(229, 72, 77, 0.38);
+}
+.cta:hover::after {
+  transform: translateX(130%);
+}
+
+/* ─── Burger ─────────────────────────────────────────────────────────────── */
+.burger {
+  display: none;
+  /* place-content, not place-items: the rows must pack to their content so the
+     three bars sit 6.5px apart, which is what the open state's
+     translateY(6.5px) relies on to fold them into a true X. */
+  place-content: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.16));
+  background: rgba(8, 8, 8, 0.55);
+  cursor: pointer;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+.burger:hover {
+  border-color: rgba(229, 72, 77, 0.55);
+  background: rgba(229, 72, 77, 0.08);
+}
+.burger span {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: #fff;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+.burger.open span:nth-child(1) {
+  transform: translateY(6.5px) rotate(45deg);
+}
+.burger.open span:nth-child(2) {
+  opacity: 0;
+}
+.burger.open span:nth-child(3) {
+  transform: translateY(-6.5px) rotate(-45deg);
+}
+
+/* ─── Mobile overlay ─────────────────────────────────────────────────────── */
+.backdrop {
+  display: none;
+}
+
+/* ─── Entrance ───────────────────────────────────────────────────────────── */
+/*
+ * Rests visible: `both` holds the finished frame, so a browser that never runs
+ * the animation still shows a complete header.
+ */
+.enter {
+  animation: nav-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes nav-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (min-width: 1600px) {
+  .innerDoc {
+    max-width: 1320px;
+  }
+  .links a {
+    padding: 0 20px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .links {
+    gap: 10px;
+  }
+  .links a {
+    padding: 0 22px;
+  }
+  .cta {
+    padding: 0 22px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1279px) {
+  .links a {
+    padding: 0 14px;
+  }
+}
+
+@media (max-width: 900px) {
+  .inner {
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    padding-top: max(var(--header-y, 16px), env(safe-area-inset-top));
+    padding-left: max(var(--header-x, 18px), env(safe-area-inset-left));
+    padding-right: max(var(--header-x, 18px), env(safe-area-inset-right));
+  }
+  /* The gutter is on .barDoc at this width, so the row must not add its own. */
+  .innerDoc {
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* Above the full-screen menu, so they stay tappable while it is open. */
+  .logo,
+  .cta,
+  .burger {
+    z-index: 80;
+  }
+  .burger {
+    display: grid;
+  }
+
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(8, 8, 8, 0.42);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.28s ease, visibility 0.28s ease, backdrop-filter 0.28s ease;
+  }
+  .backdrop.open {
+    opacity: 1;
+    visibility: visible;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  .links {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    padding: 96px 22px 32px;
+    padding-top: max(96px, calc(env(safe-area-inset-top) + 88px));
+    background: transparent;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+  }
+  .links.open {
+    opacity: 1;
+    visibility: visible;
+  }
+  .links a {
+    width: 100%;
+    justify-content: center;
+    height: 56px;
+    font-size: 19px;
+    border-radius: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    animation: none;
+  }
+  .bar,
+  .links a,
+  .cta,
+  .burger,
+  .burger span,
+  .backdrop {
+    transition: none;
+  }
+}

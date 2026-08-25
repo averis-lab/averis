@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --background: #000000;
+  --surface: #0e0e11;
+  --border: #27272a;
+  --foreground: #fafafa;
+  --muted: #8b8b93;
+  /* Bright red — for accent text and tints on black (5.4:1 on #000). */
+  --accent: #e5484d;
+  /* Darker red — for solid fills that carry white text. White on #e5484d is
+     only 3.9:1 and fails WCAG AA; on this it is 5.7:1. */
+  --accent-strong: #c32b31;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --surface: #111113;
+    --border: #27272a;
+    --foreground: #fafafa;
+    --muted: #8b8b93;
+    --accent: #e5484d;
+    --accent-strong: #c32b31;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-line: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

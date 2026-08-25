@@ -1,0 +1,14 @@
+{
+  "name": "@averis/types",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared domain contracts for Averis.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  }
+}

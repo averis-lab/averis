@@ -1,0 +1,678 @@
+/*
+ * Whitepaper.
+ *
+ * A reading page, so the layout is decided by two things: one measure narrow
+ * enough to read comfortably (~68 characters), and one left edge that every
+ * element shares. Section numbers, figures and tables all hang off that edge
+ * rather than indenting past it — a document whose headings start further right
+ * than its paragraphs reads as ragged no matter how good the type is.
+ *
+ * Palette tokens come from .root in landing.module.css, which this page sits
+ * inside, so nothing is redeclared here.
+ */
+
+.page {
+  position: relative;
+  z-index: 1;
+  padding: 34px var(--stats-x, 72px) 0;
+}
+
+/* The document is a block, not a full-bleed page: past this width it stops
+   growing and centres, so a wide monitor does not strand the column on the
+   left with a field of empty space beside it. */
+.masthead,
+.body {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+/* ─── Masthead ───────────────────────────────────────────────────────────── */
+.masthead {
+  padding: 34px 0 38px;
+}
+
+/*
+ * A document identity line, not a section eyebrow.
+ *
+ * The landing page announces itself with a glowing dot and display type; a
+ * paper announces itself with its name and number. Using the landing device
+ * here made the top of this page read as a second hero, which is exactly what
+ * a reader arriving for a document does not want.
+ */
+.kicker {
+  display: block;
+  margin-bottom: 16px;
+  color: #7d7d84;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+.kicker b {
+  color: var(--red, #e5484d);
+  font-weight: 400;
+}
+
+/* Set at reading scale rather than display scale: this is a title, not a
+   headline, so it takes a normal measure and no typographic flourish. */
+.title {
+  max-width: 26ch;
+  font-size: var(--paper-title, 33px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.18;
+  color: #fff;
+  text-wrap: balance;
+}
+
+/* Publication data reads as a strip of labelled fields rather than a sentence,
+   which is both scannable and unmistakably a document header. */
+.meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, auto));
+  justify-content: start;
+  gap: 22px 40px;
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.metaLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: #6f6f74;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.metaValue {
+  color: #cfcfd4;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+
+.abstract {
+  max-width: 74ch;
+  margin-top: 32px;
+  padding-left: 24px;
+  border-left: 2px solid var(--red, #e5484d);
+}
+.abstractLabel {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--red, #e5484d);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.abstract p {
+  color: #c6c6cb;
+  font-size: 15.4px;
+  line-height: 1.76;
+  letter-spacing: -0.014em;
+}
+.abstract p + p {
+  margin-top: 15px;
+}
+
+/* ─── Layout: contents rail + column ─────────────────────────────────────── */
+.body {
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 64px;
+  padding: 0 0 104px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+.toc {
+  position: sticky;
+  top: 26px;
+  align-self: start;
+  max-height: calc(100dvh - 52px);
+  padding: 42px 10px 8px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.toc::-webkit-scrollbar {
+  display: none;
+}
+
+.tocLabel {
+  display: block;
+  margin-bottom: 16px;
+  color: #6f6f74;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* The rail doubles as a progress bar: the line fills as the page scrolls, so
+   position in the document is legible without a second widget. */
+.tocProgress {
+  position: absolute;
+  top: 42px;
+  bottom: 8px;
+  left: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.tocProgress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(180deg, var(--red, #e5484d), rgba(229, 72, 77, 0.35));
+  transform-origin: top center;
+  transform: scaleY(0);
+}
+
+.toc li {
+  margin-bottom: 1px;
+}
+.toc a {
+  display: grid;
+  grid-template-columns: 20px 1fr;
+  gap: 9px;
+  padding: 7px 8px 7px 0;
+  color: #7d7d84;
+  font-size: 12.4px;
+  line-height: 1.45;
+  letter-spacing: -0.012em;
+  transition: color 0.2s ease;
+}
+.toc a:hover {
+  color: #fff;
+}
+.tocIndex {
+  color: #4a4a50;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  padding-top: 1px;
+  transition: color 0.2s ease;
+}
+.toc a:hover .tocIndex {
+  color: var(--red, #e5484d);
+}
+.tocActive {
+  color: #fff;
+}
+.tocActive .tocIndex {
+  color: var(--red, #e5484d);
+}
+
+.article {
+  /* ~68 characters at this size: long enough not to fragment a sentence,
+     short enough that the eye finds the next line without hunting. */
+  max-width: 68ch;
+  min-width: 0;
+  padding-top: 42px;
+}
+
+/* ─── Sections ───────────────────────────────────────────────────────────── */
+.section {
+  scroll-margin-top: 26px;
+  padding-bottom: 52px;
+}
+.section + .section {
+  padding-top: 52px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* The number sits above the title rather than beside it, so heading and body
+   copy share one left edge at every width. */
+.sectionNumber {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--red, #e5484d);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.heading {
+  margin-bottom: 22px;
+  font-size: var(--paper-h2, 25px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.22;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.subheading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 34px 0 14px;
+  color: #fff;
+  font-size: 16.5px;
+  font-weight: 500;
+  letter-spacing: -0.026em;
+}
+.subheading::before {
+  content: "";
+  width: 14px;
+  height: 1px;
+  flex: none;
+  background: var(--red, #e5484d);
+  transform: translateY(-0.35em);
+}
+
+.article p {
+  color: #b4b4ba;
+  font-size: 14.6px;
+  line-height: 1.78;
+  letter-spacing: -0.012em;
+}
+.article p + p {
+  margin-top: 16px;
+}
+.article strong {
+  color: #ededf0;
+  font-weight: 500;
+}
+.article em {
+  font-style: italic;
+  color: #d2d2d6;
+}
+
+.link {
+  color: #e4e4e8;
+  text-decoration: underline;
+  text-decoration-color: rgba(229, 72, 77, 0.6);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+.link:hover {
+  color: #fff;
+  text-decoration-color: var(--red, #e5484d);
+}
+
+.list {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+.list li {
+  position: relative;
+  padding-left: 20px;
+  color: #b4b4ba;
+  font-size: 14.6px;
+  line-height: 1.74;
+  letter-spacing: -0.012em;
+}
+.list li::before {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 0.78em;
+  width: 7px;
+  height: 1px;
+  background: var(--red, #e5484d);
+}
+
+.code {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.86em;
+  color: #e0e0e4;
+}
+
+/* ─── Figures and tables ─────────────────────────────────────────────────── */
+/*
+ * Both carry a numbered label in the same style, so a figure and a table read
+ * as two kinds of the same thing — exhibits attached to the argument.
+ */
+.exhibitLabel {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--red, #e5484d);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.figure {
+  margin: 26px 0 8px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.018);
+  overflow: hidden;
+}
+.figureBody {
+  padding: 22px 24px;
+  overflow-x: auto;
+}
+.figureBody pre {
+  color: #c2c2c8;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.75;
+  letter-spacing: -0.01em;
+  white-space: pre;
+}
+.caption {
+  padding: 12px 24px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.014);
+  color: #83838a;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.005em;
+}
+
+.equation {
+  margin: 24px 0;
+  padding: 20px 24px;
+  border-left: 2px solid var(--red, #e5484d);
+  background: rgba(229, 72, 77, 0.045);
+  color: #e4e4e8;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 13.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+.equationNote {
+  display: block;
+  margin-top: 10px;
+  color: #85858b;
+  font-size: 12px;
+  line-height: 1.62;
+}
+
+.tableWrap {
+  margin: 26px 0 8px;
+}
+/* Sits outside the scrolling box, so the caption stays put while a wide table
+   is scrolled sideways. */
+.tableCaption {
+  margin-bottom: 13px;
+  color: #83838a;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.005em;
+}
+.tableScroll {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  min-width: 440px;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  padding: 12px 16px 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: left;
+  vertical-align: top;
+}
+.table tr > *:last-child {
+  padding-right: 0;
+}
+.table thead th {
+  padding-top: 0;
+  border-bottom-color: var(--border-soft, rgba(255, 255, 255, 0.12));
+  color: #6f6f74;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.table tbody th {
+  color: #ededf0;
+  font-size: 13.4px;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  padding-right: 26px;
+}
+.table td {
+  color: #a2a2a9;
+  font-size: 13.4px;
+  line-height: 1.62;
+  letter-spacing: -0.012em;
+}
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* Numeric columns line up on the digit, not the word. */
+.numeric {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  color: #cfcfd4;
+  white-space: nowrap;
+}
+.mono {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  color: #cfcfd4;
+}
+
+.state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.state::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+.shipped {
+  color: #86d29a;
+}
+.shipped::before {
+  background: #86d29a;
+}
+.untested {
+  color: #e0ac66;
+}
+.untested::before {
+  background: #e0ac66;
+}
+.absent {
+  color: #85858b;
+}
+.absent::before {
+  background: #55555b;
+}
+
+/* ─── Closing ────────────────────────────────────────────────────────────── */
+.endnote {
+  margin-top: 38px;
+  padding: 22px 24px;
+  border: 1px solid rgba(229, 72, 77, 0.24);
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.045);
+  color: #c9c9ce;
+  font-size: 13.8px;
+  line-height: 1.72;
+  letter-spacing: -0.012em;
+}
+
+.sourceLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 24px;
+}
+.sourceLink {
+  padding: 8px 14px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.022);
+  color: #9c9ca3;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+.sourceLink:hover {
+  border-color: rgba(229, 72, 77, 0.4);
+  color: #e4e4e8;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (min-width: 1600px) {
+  .page {
+    --paper-title: 40px;
+    --paper-h2: 28px;
+  }
+  .masthead,
+  .body {
+    max-width: 1320px;
+  }
+  .body {
+    grid-template-columns: 250px minmax(0, 1fr);
+    gap: 84px;
+  }
+  .article p,
+  .list li {
+    font-size: 15.2px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .toc {
+    position: static;
+    max-height: none;
+    padding: 34px 0 26px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .tocProgress {
+    top: 34px;
+    bottom: 26px;
+  }
+  .toc ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 20px;
+  }
+  .article {
+    padding-top: 36px;
+    max-width: 72ch;
+  }
+}
+
+@media (max-width: 900px) {
+  .page {
+    --paper-title: 25px;
+    --paper-h2: 20px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .masthead {
+    padding: 24px 0 30px;
+  }
+  .title {
+    max-width: none;
+  }
+  .meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 20px;
+  }
+  .abstract {
+    margin-top: 30px;
+    padding-left: 18px;
+  }
+  .abstract p {
+    font-size: 14.6px;
+  }
+  .toc ol {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .article {
+    padding-top: 30px;
+  }
+  .section {
+    padding-bottom: 40px;
+  }
+  .section + .section {
+    padding-top: 40px;
+  }
+  .body {
+    padding-bottom: 72px;
+  }
+  .figureBody,
+  .equation,
+  .endnote {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .caption {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* ─── Print ──────────────────────────────────────────────────────────────── */
+/*
+ * There is no PDF to download, so the page has to be the artefact: printing it
+ * is the export.
+ */
+@media print {
+  .page {
+    padding: 0;
+    color: #000;
+  }
+  .toc {
+    display: none;
+  }
+  .body {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .article {
+    max-width: none;
+    padding-top: 0;
+  }
+  .title,
+  .heading,
+  .subheading,
+  .article strong {
+    color: #000;
+  }
+  .article p,
+  .list li,
+  .table td,
+  .abstract p {
+    color: #1a1a1a;
+  }
+  .section {
+    break-inside: avoid-page;
+  }
+  .heading,
+  .sectionNumber {
+    break-after: avoid-page;
+  }
+  .figure,
+  .equation,
+  .endnote,
+  .abstract {
+    border-color: #bbb;
+    background: none;
+    break-inside: avoid;
+  }
+  .figureBody pre,
+  .equation,
+  .mono,
+  .numeric {
+    color: #111;
+  }
+  .sourceLinks {
+    display: none;
+  }
+}

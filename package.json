@@ -1,26 +1,64 @@
 {
-  "name": "intelnet",
+  "name": "averis",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "description": "The accountability layer between evidence and decisions — turns curated Reppo Datanet data into verifiable, multi-agent intelligence.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "workers"
+  ],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "next": "16.3.1",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "dev": "npm run dev --workspace @averis/web",
+    "dev:api": "npm run dev --workspace @averis/api",
+    "dev:workers": "npm run dev --workspace @averis/workers",
+    "dev:operator": "npm run dev --workspace @averis/operator",
+    "build": "npm run build --workspace @averis/web",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "npm run lint --workspace @averis/web",
+    "infra:up": "docker compose up -d postgres redis",
+    "infra:down": "docker compose down",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
+    "demo": "tsx scripts/demo.ts",
+    "key:create": "tsx scripts/api-key.ts",
+    "settle": "tsx scripts/settle.ts",
+    "dev:all": "concurrently -k -n api,workers,web -c red,yellow,cyan \"npm:dev:api\" \"npm:dev:workers\" \"npm:dev\"",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "npm test && npm run test:integration"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.1",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/node": "^26.2.0",
+    "concurrently": "^10.0.5",
+    "dotenv": "^17.4.2",
+    "prisma": "^7.9.1",
+    "tsx": "^4.23.12",
+    "typescript": "~5.9",
+    "vitest": "^4.1.11"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@google/genai": "^2.18.0",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@x402/core": "^2.23.0",
+    "@x402/fastify": "^2.23.0",
+    "@x402/svm": "^2.23.0",
+    "bullmq": "^6.1.2",
+    "fastify": "^5.12.1",
+    "ioredis": "^6.0.0",
+    "openai": "^7.5.0",
+    "zod": "^4.4.3"
   }
 }

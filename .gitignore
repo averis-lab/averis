@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# monorepo
+node_modules/
+dist/
+*.tsbuildinfo
+.turbo/
+apps/web/.next/
+coverage/
+
+# keep the env template committed
+!.env.example
+
+# prisma generated client
+packages/db/src/generated/

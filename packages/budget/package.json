@@ -1,0 +1,9 @@
+{
+  "name": "@averis/budget",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pre-execution budget guard and spend ledger.",
+  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "dependencies": { "@averis/types": "*" }
+}

@@ -1,0 +1,52 @@
+# Averis web on Fly.io
+#
+# The same image as fly.toml, running a different command. A second app rather
+# than a second process group in the first one: Fly gives an app one hostname,
+# and the gateway needs a public one of its own for SDK callers and x402
+# payers.
+#
+#   fly launch --no-deploy --copy-config --config fly.web.toml
+#   fly secrets set --config fly.web.toml AVERIS_API_KEY=…
+#   fly deploy --config fly.web.toml
+
+app = "averis-web"
+primary_region = "sin"          # same region as the API, so the hop stays local
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  # Fly's private network: this hop never leaves the organisation, so the
+  # gateway does not have to be reached over the public internet to render a
+  # page. Read at runtime by lib/api.ts — a NEXT_PUBLIC_* value would have been
+  # baked into the image at build time instead.
+  AVERIS_API_URL = "http://averis-api.internal:4000"
+
+# Secrets, set with `fly secrets set --config fly.web.toml`:
+#   AVERIS_API_KEY   server-only; it must never reach the browser
+
+[processes]
+  web = "npm run start --workspace @averis/web"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_start_machines = true
+  auto_stop_machines = false
+  min_machines_running = 1
+  processes = ["web"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "4s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/"
+
+# Next's server plus the prerendered output is heavier than the API; 512mb runs
+# but leaves little headroom on a cold render.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  processes = ["web"]

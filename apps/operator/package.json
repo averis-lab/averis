@@ -1,0 +1,20 @@
+{
+  "name": "@averis/operator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous operator node: discovers jobs, applies strategy, enforces budget, executes agents.",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@averis/budget": "*",
+    "@averis/db": "*",
+    "@averis/protocol": "*",
+    "@averis/strategy": "*",
+    "@averis/types": "*",
+    "dotenv": "^17.0.0",
+    "yaml": "^2.7.0"
+  }
+}

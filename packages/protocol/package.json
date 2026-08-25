@@ -1,0 +1,18 @@
+{
+  "name": "@averis/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Protocol core: job engine, lifecycle, execution pipeline, reward engine.",
+  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "dependencies": {
+    "@averis/types": "*",
+    "@averis/db": "*",
+    "@averis/queue": "*",
+    "@averis/budget": "*",
+    "@averis/consensus": "*",
+    "@averis/reputation": "*",
+    "@averis/agent-runtime": "*",
+    "@averis/reppo-adapter": "*"
+  }
+}

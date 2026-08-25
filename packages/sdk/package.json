@@ -1,0 +1,9 @@
+{
+  "name": "@averis/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Typed client for the Averis API.",
+  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "dependencies": { "@averis/types": "*" }
+}

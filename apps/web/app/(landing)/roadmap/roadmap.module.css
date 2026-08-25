@@ -1,0 +1,398 @@
+/*
+ * Roadmap.
+ *
+ * A reading page like the whitepaper: one centred column, and every element
+ * measured from the same left edge. The phases are a rail rather than a grid —
+ * a roadmap is a sequence, and a grid would imply the phases are alternatives.
+ */
+
+.page {
+  position: relative;
+  z-index: 1;
+  padding: 34px var(--stats-x, 72px) 0;
+}
+
+.masthead,
+.body {
+  max-width: 1180px;
+  margin-inline: auto;
+}
+
+.masthead {
+  padding: 34px 0 38px;
+}
+
+.kicker {
+  display: block;
+  margin-bottom: 16px;
+  color: #7d7d84;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+.kicker b {
+  color: var(--red, #e5484d);
+  font-weight: 400;
+}
+
+.title {
+  max-width: 22ch;
+  font-size: var(--paper-title, 33px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.18;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.lede {
+  max-width: 72ch;
+  margin-top: 24px;
+  color: #b4b4ba;
+  font-size: 15px;
+  line-height: 1.74;
+  letter-spacing: -0.012em;
+}
+.lede + .lede {
+  margin-top: 14px;
+}
+.lede strong {
+  color: #ededf0;
+  font-weight: 500;
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: start;
+  gap: 22px 40px;
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.metaLabel {
+  display: block;
+  margin-bottom: 6px;
+  color: #6f6f74;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.metaValue {
+  color: #cfcfd4;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Phases ─────────────────────────────────────────────────────────────── */
+.body {
+  padding: 0 0 104px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+.phase {
+  position: relative;
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 48px;
+  padding: 48px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  scroll-margin-top: 90px;
+}
+.phase:last-of-type {
+  border-bottom: 0;
+}
+
+.phaseAside {
+  position: sticky;
+  top: 96px;
+  align-self: start;
+}
+
+.phaseIndex {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--red, #e5484d);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.phaseWhen {
+  display: block;
+  margin-bottom: 12px;
+  color: #85858b;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.phaseTitle {
+  margin-bottom: 16px;
+  font-size: var(--paper-h2, 23px);
+  font-weight: 500;
+  letter-spacing: -0.032em;
+  line-height: 1.24;
+  color: #fff;
+  text-wrap: balance;
+}
+
+.phaseBody {
+  max-width: 68ch;
+  color: #b4b4ba;
+  font-size: 14.4px;
+  line-height: 1.76;
+  letter-spacing: -0.012em;
+}
+.phaseBody strong {
+  color: #ededf0;
+  font-weight: 500;
+}
+
+/* ─── Status ─────────────────────────────────────────────────────────────── */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border: 1px solid;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+.shipped {
+  border-color: rgba(134, 210, 154, 0.34);
+  background: rgba(134, 210, 154, 0.08);
+  color: #86d29a;
+}
+.active {
+  border-color: rgba(229, 72, 77, 0.4);
+  background: rgba(229, 72, 77, 0.08);
+  color: #ff8a8e;
+}
+.planned {
+  border-color: var(--border-soft, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.02);
+  color: #85858b;
+}
+
+/* ─── Deliverables ───────────────────────────────────────────────────────── */
+.items {
+  margin-top: 22px;
+  display: grid;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 8px 18px;
+  padding: 14px 16px;
+  background: #000;
+}
+
+.itemText {
+  color: #d2d2d6;
+  font-size: 13.8px;
+  line-height: 1.6;
+  letter-spacing: -0.012em;
+}
+.itemNote {
+  grid-column: 1 / -1;
+  color: #7d7d84;
+  font-size: 12.2px;
+  line-height: 1.6;
+  letter-spacing: -0.008em;
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mark::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
+  background: currentColor;
+}
+.markShipped {
+  color: #86d29a;
+}
+.markActive {
+  color: #ff8a8e;
+}
+.markPlanned {
+  color: #6f6f74;
+}
+
+/* ─── Closing ────────────────────────────────────────────────────────────── */
+.closing {
+  margin-top: 48px;
+  padding: 24px;
+  border: 1px solid rgba(229, 72, 77, 0.24);
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.045);
+}
+.closingTitle {
+  margin-bottom: 12px;
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+}
+.closingBody {
+  max-width: 74ch;
+  color: #c2c2c8;
+  font-size: 13.8px;
+  line-height: 1.72;
+  letter-spacing: -0.012em;
+}
+.closingBody + .closingBody {
+  margin-top: 12px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 28px;
+}
+.link {
+  padding: 8px 14px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.022);
+  color: #9c9ca3;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+.link:hover {
+  border-color: rgba(229, 72, 77, 0.4);
+  color: #e4e4e8;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (min-width: 1600px) {
+  .page {
+    --paper-title: 40px;
+    --paper-h2: 26px;
+  }
+  .masthead,
+  .body {
+    max-width: 1320px;
+  }
+  .phase {
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 64px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .phase {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .phaseAside {
+    position: static;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .phaseIndex,
+  .phaseWhen {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .page {
+    --paper-title: 25px;
+    --paper-h2: 20px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .masthead {
+    padding: 24px 0 30px;
+  }
+  .title {
+    max-width: none;
+  }
+  .meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px 20px;
+  }
+  .phase {
+    padding: 34px 0;
+  }
+  .phaseAside {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .mark {
+    grid-row: 1;
+  }
+  .body {
+    padding-bottom: 72px;
+  }
+}
+
+@media print {
+  .page {
+    padding: 0;
+    color: #000;
+  }
+  .phaseAside {
+    position: static;
+  }
+  .phase {
+    break-inside: avoid-page;
+  }
+  .title,
+  .phaseTitle,
+  .closingTitle {
+    color: #000;
+  }
+  .phaseBody,
+  .itemText,
+  .lede {
+    color: #1a1a1a;
+  }
+  .items,
+  .closing {
+    border-color: #bbb;
+    background: none;
+  }
+  .item {
+    background: none;
+  }
+  .links {
+    display: none;
+  }
+}

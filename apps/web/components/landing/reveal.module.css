@@ -1,0 +1,74 @@
+/*
+ * Rests visible. `data-armed` is set by the component only when the block
+ * starts below the fold and motion is welcome, so no-JS and reduced-motion
+ * readers get the finished state directly.
+ *
+ * The motion is deliberately one gesture — rise, sharpen, fade in — used by
+ * every section on the page, so the whole thing reads as one document rather
+ * than a stack of separately animated widgets.
+ */
+.reveal {
+  opacity: 1;
+}
+
+.reveal[data-armed="true"] {
+  opacity: 0;
+  transform: translateY(18px);
+  filter: blur(6px);
+}
+
+.reveal[data-armed="true"].in {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition:
+    opacity 0.78s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0s),
+    transform 0.78s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0s),
+    filter 0.78s cubic-bezier(0.16, 1, 0.3, 1) var(--reveal-delay, 0s);
+}
+
+/*
+ * Staggered variant: the container itself stays put and its direct children
+ * arrive in sequence. The delays are written out rather than computed because
+ * a CSS-only stagger has no counter to lean on, and no grid here runs past
+ * eight cells.
+ */
+.stagger[data-armed="true"] {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+.stagger[data-armed="true"] > * {
+  opacity: 0;
+  transform: translateY(16px);
+  filter: blur(5px);
+}
+
+.stagger[data-armed="true"].in > * {
+  opacity: 1;
+  transform: none;
+  filter: none;
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stagger[data-armed="true"].in > *:nth-child(1) { transition-delay: 0s, 0s, 0s; }
+.stagger[data-armed="true"].in > *:nth-child(2) { transition-delay: 0.07s, 0.07s, 0.07s; }
+.stagger[data-armed="true"].in > *:nth-child(3) { transition-delay: 0.14s, 0.14s, 0.14s; }
+.stagger[data-armed="true"].in > *:nth-child(4) { transition-delay: 0.21s, 0.21s, 0.21s; }
+.stagger[data-armed="true"].in > *:nth-child(5) { transition-delay: 0.28s, 0.28s, 0.28s; }
+.stagger[data-armed="true"].in > *:nth-child(6) { transition-delay: 0.35s, 0.35s, 0.35s; }
+.stagger[data-armed="true"].in > *:nth-child(7) { transition-delay: 0.42s, 0.42s, 0.42s; }
+.stagger[data-armed="true"].in > *:nth-child(n + 8) { transition-delay: 0.49s, 0.49s, 0.49s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal[data-armed="true"],
+  .stagger[data-armed="true"] > * {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

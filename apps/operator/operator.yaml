@@ -1,0 +1,38 @@
+# Autonomous operator configuration.
+#
+# The operator runs unattended after this file is set. Every limit here is a
+# hard ceiling enforced before work executes, not a target.
+
+operator:
+  name: alpha-node
+
+strategy:
+  # Domains this node is willing to work in. Empty accepts any.
+  domains:
+    - crypto
+    - defi
+    - markets
+    - research
+
+  # Skip work paying less than this, in USDC.
+  min_reward: 0.5
+
+  # Skip jobs demanding more confidence than this node can credibly reach —
+  # taking one that will fail its own threshold burns budget for nothing.
+  max_required_confidence: 0.9
+
+  max_concurrent_jobs: 5
+  cadence: 30m
+
+  # Do not start a job with less than this long until its deadline.
+  min_time_to_deadline_ms: 60000
+
+budget:
+  # Rolling windows, in USD.
+  daily: 50
+  weekly: 250
+  per_job: 5
+  per_agent: 2
+  # Held back from the daily budget so inference can never consume the funds
+  # needed to settle rewards already promised.
+  transaction_reserve: 5

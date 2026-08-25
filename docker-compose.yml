@@ -1,0 +1,76 @@
+name: averis
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: averis-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: averis
+      POSTGRES_PASSWORD: averis
+      POSTGRES_DB: averis
+    ports:
+      # 5433 by default: a locally installed Postgres commonly holds 5432.
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U averis -d averis"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: averis-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["npm", "run", "start", "--workspace", "@averis/api"]
+    environment:
+      DATABASE_URL: postgresql://averis:averis@postgres:5432/averis?schema=public
+      REDIS_URL: redis://redis:6379
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    profiles: ["full"]
+
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    command: ["npm", "run", "start", "--workspace", "@averis/workers"]
+    environment:
+      DATABASE_URL: postgresql://averis:averis@postgres:5432/averis?schema=public
+      REDIS_URL: redis://redis:6379
+    env_file:
+      - path: .env
+        required: false
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    profiles: ["full"]
+
+volumes:
+  postgres-data:
+  redis-data:

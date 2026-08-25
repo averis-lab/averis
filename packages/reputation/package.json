@@ -1,0 +1,12 @@
+{
+  "name": "@averis/reputation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Evaluation engine and multidimensional, performance-based reputation.",
+  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "dependencies": {
+    "@averis/types": "*",
+    "@averis/consensus": "*"
+  }
+}

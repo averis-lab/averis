@@ -1,0 +1,9 @@
+{
+  "name": "@averis/strategy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Operator strategy: job discovery filters and selection policy.",
+  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "dependencies": { "@averis/types": "*", "zod": "^4.4.3" }
+}

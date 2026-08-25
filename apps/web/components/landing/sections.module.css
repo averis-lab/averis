@@ -1,0 +1,1069 @@
+/*
+ * Styles for the landing sections below the hero.
+ *
+ * The palette tokens (--red, --muted, --border-soft, --serif) are declared on
+ * .root in landing.module.css and inherit down here; each use carries a literal
+ * fallback so a section still renders correctly if it is ever mounted outside
+ * that shell.
+ *
+ * The house style is hairlines rather than boxes: one border, one background
+ * tint at most, and red reserved for accents — never for large fills.
+ */
+
+/* ─── Shared utilities ───────────────────────────────────────────────────── */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.inlineCode,
+.caption code {
+  padding: 1px 5px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.88em;
+  color: #e8e8ea;
+}
+
+.caption {
+  margin-top: 18px;
+  color: #6f6f74;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Report preview panel ───────────────────────────────────────────────── */
+.panel {
+  position: relative;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 100% at 50% -20%, rgba(229, 72, 77, 0.07) 0%, rgba(0, 0, 0, 0) 60%),
+    rgba(255, 255, 255, 0.018);
+  overflow: hidden;
+  box-shadow: 0 40px 90px -50px rgba(0, 0, 0, 0.9);
+}
+
+/*
+ * A light travelling the panel's edge.
+ *
+ * Drawn as a conic gradient clipped to a one-pixel ring by two masks that
+ * cancel out everywhere except the border box. The angle is a registered
+ * property so it can be interpolated at all; where @property is unsupported
+ * the ring simply sits still, which is why the bright arc rests on the top
+ * edge rather than somewhere that would look like a rendering fault.
+ */
+@property --beam {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--beam),
+    transparent 0deg,
+    transparent 296deg,
+    rgba(229, 72, 77, 0.55) 330deg,
+    rgba(255, 214, 214, 0.95) 350deg,
+    rgba(229, 72, 77, 0.55) 358deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: beam 8s linear infinite;
+}
+
+@keyframes beam {
+  to {
+    --beam: 360deg;
+  }
+}
+
+.chrome {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.dots {
+  display: inline-flex;
+  gap: 6px;
+}
+.dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+}
+.dots i:first-child {
+  background: rgba(229, 72, 77, 0.5);
+}
+
+.crumb {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  color: #7f7f86;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.crumb strong {
+  color: #dcdcde;
+  font-weight: 500;
+}
+.slash {
+  padding: 0 6px;
+  color: #4a4a50;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid rgba(120, 200, 140, 0.28);
+  border-radius: 999px;
+  background: rgba(120, 200, 140, 0.08);
+  color: #86d29a;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+}
+
+.body {
+  padding: 26px 26px 28px;
+}
+
+.query {
+  max-width: 62ch;
+  color: #ededf0;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: -0.02em;
+}
+
+/* Confidence and consensus sit side by side because the point is that they
+   are different numbers — a cohort can be confidently split. */
+.meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 26px;
+  margin: 22px 0 4px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+.meter {
+  min-width: 0;
+}
+.meterLabel {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--muted, #9a9a9a);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+}
+.meterLabel b {
+  margin-left: 6px;
+  color: #fff;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.track {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+.track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--red-deep, #7a1a1f), var(--red, #e5484d));
+}
+
+/* The bars fill only once the panel has actually been scrolled to. Keyed off
+   the data attribute the reveal wrapper sets, because the class it uses is
+   hashed inside its own module and cannot be named from here. */
+[data-revealed="true"] .track i,
+[data-revealed="true"] .contribTrack i {
+  transform-origin: left center;
+  animation: fill 1.05s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both;
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.trackMuted i {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.facts {
+  display: flex;
+  gap: 22px;
+}
+.facts dt {
+  color: #6f6f74;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.facts dd {
+  margin-top: 5px;
+  color: #e8e8ea;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 14px;
+}
+
+.claims {
+  display: grid;
+  gap: 0;
+}
+.claim {
+  padding: 18px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.claim:last-child {
+  border-bottom: 0;
+}
+
+.claimHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.kind {
+  padding: 3px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 5px;
+  color: #b9b9c0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+}
+/* Only the two kinds the protocol treats specially are tinted: a prediction
+   is the one that can later be resolved true or false, and a risk is the one
+   a reader must not skim past. */
+.prediction {
+  border-color: rgba(229, 72, 77, 0.4);
+  background: rgba(229, 72, 77, 0.08);
+  color: #ff8a8e;
+}
+.risk {
+  border-color: rgba(228, 170, 90, 0.34);
+  background: rgba(228, 170, 90, 0.07);
+  color: #e0ac66;
+}
+
+.claimConfidence {
+  margin-left: auto;
+  color: #7f7f86;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+}
+
+.claimText {
+  max-width: 74ch;
+  color: #d6d6d9;
+  font-size: 13.8px;
+  line-height: 1.6;
+  letter-spacing: -0.012em;
+}
+
+.evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 11px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px 4px 7px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #9c9ca3;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: -0.01em;
+  transition: border-color 0.25s ease, color 0.25s ease;
+}
+.chip:hover {
+  border-color: rgba(229, 72, 77, 0.4);
+  color: #d2d2d6;
+}
+.chip svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: #6a6a70;
+}
+.chip b {
+  padding-left: 6px;
+  margin-left: 2px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  color: #d8d8db;
+  font-weight: 500;
+}
+
+.conflict {
+  margin-top: 22px;
+  padding: 18px 18px 20px;
+  border: 1px solid rgba(229, 72, 77, 0.24);
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.045);
+}
+.conflictLabel {
+  display: inline-flex;
+  align-items: center;
+  color: var(--red, #e5484d);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.conflictQuestion {
+  margin-top: 9px;
+  color: #ededf0;
+  font-size: 14.5px;
+  letter-spacing: -0.018em;
+}
+.stances {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin-top: 14px;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.stance {
+  padding: 13px 14px;
+  background: #060606;
+}
+.stanceAgent {
+  display: block;
+  margin-bottom: 6px;
+  color: #86d29a;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.stanceAgainst .stanceAgent {
+  color: #ff8a8e;
+}
+.stance p {
+  color: #a8a8ae;
+  font-size: 12.8px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+}
+
+.contributions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.contribLabel {
+  display: block;
+  margin-bottom: 14px;
+  color: #6f6f74;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.contribRow {
+  display: grid;
+  grid-template-columns: 150px 1fr 42px;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 0;
+}
+.contribAgent {
+  color: #c9c9ce;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+.contribTrack {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.contribTrack i {
+  display: block;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.34);
+}
+.contribValue {
+  color: #8a8a90;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  text-align: right;
+}
+
+/* ─── Capability rail ───────────────────────────────────────────────────── */
+/*
+ * Two rows drifting in opposite directions. Each row holds the same track
+ * twice and travels exactly half its own width, so the loop closes on itself
+ * with no visible seam and nothing measuring anything at runtime.
+ */
+.rail {
+  position: relative;
+  z-index: 1;
+  padding: 58px 0 4px;
+}
+
+.railCaption {
+  padding: 0 20px;
+  margin-bottom: 24px;
+  color: #6f6f74;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.005em;
+  text-align: center;
+}
+
+.railRow {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+}
+.railRow + .railRow {
+  margin-top: 10px;
+}
+
+.railMotion {
+  display: flex;
+  width: max-content;
+  animation: rail 52s linear infinite;
+}
+.railReverse {
+  animation-direction: reverse;
+}
+/* Hovering holds the row still so a tag can actually be read. */
+.railRow:hover .railMotion {
+  animation-play-state: paused;
+}
+
+.railTrack {
+  display: flex;
+  gap: 10px;
+  padding-right: 10px;
+}
+
+.railDomain,
+.railRuntime {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 15px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.022);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.railDomain {
+  color: #b9b9c0;
+}
+.railRuntime {
+  color: #85858b;
+}
+.railDot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--red, #e5484d);
+  box-shadow: 0 0 8px var(--red-glow-soft, rgba(229, 72, 77, 0.22));
+}
+
+@keyframes rail {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ─── Domains ────────────────────────────────────────────────────────────── */
+.domains {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border-soft, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  overflow: hidden;
+}
+.domain {
+  position: relative;
+  padding: 26px 24px 28px;
+  background: #000;
+  transition: background-color 0.35s ease;
+}
+.domain:hover {
+  background: rgba(255, 255, 255, 0.026);
+}
+
+/* Follows the pointer; --mx/--my are written by SpotlightCard. Sits above the
+   card background and below its text, so the copy never dims. */
+.domain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(
+    240px circle at var(--mx, 50%) var(--my, 0%),
+    rgba(229, 72, 77, 0.14),
+    transparent 68%
+  );
+  transition: opacity 0.4s ease;
+}
+.domain:hover::before {
+  opacity: 1;
+}
+.domain > * {
+  position: relative;
+}
+.domainTag {
+  display: inline-block;
+  margin-bottom: 14px;
+  padding: 3px 9px;
+  border: 1px solid rgba(229, 72, 77, 0.32);
+  border-radius: 999px;
+  color: var(--red, #e5484d);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.domainTitle {
+  margin-bottom: 9px;
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.domainBody {
+  max-width: 36ch;
+  color: var(--muted, #9a9a9a);
+  font-size: 13.2px;
+  line-height: 1.62;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Comparison matrix ──────────────────────────────────────────────────── */
+.matrixWrap {
+  overflow-x: auto;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.matrix {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+}
+.matrix th,
+.matrix td {
+  padding: 15px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  text-align: center;
+  vertical-align: middle;
+}
+.matrix thead th {
+  padding-top: 18px;
+  color: var(--muted, #9a9a9a);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.matrix tbody th {
+  width: 46%;
+  padding-left: 0;
+  color: #d2d2d6;
+  font-size: 13.5px;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  text-align: left;
+}
+.matrix tbody tr:last-child th,
+.matrix tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The owned column is tinted end to end so the eye reads it as one block. */
+.matrixOwn {
+  background: rgba(229, 72, 77, 0.05);
+}
+.matrix thead th.matrixOwn {
+  color: var(--red, #e5484d);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.mark svg {
+  width: 15px;
+  height: 15px;
+}
+.markYes {
+  background: rgba(229, 72, 77, 0.14);
+  color: #ff7a7f;
+}
+.markNo {
+  color: #47474d;
+}
+.markPartial {
+  color: #8a8a90;
+}
+
+/* ─── Developers ─────────────────────────────────────────────────────────── */
+.devGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.codeCard {
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.018);
+  overflow: hidden;
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.022);
+}
+.tab {
+  padding: 6px 13px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: #8a8a90;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+.tab:hover {
+  color: #d6d6d9;
+}
+.tabActive {
+  border-color: rgba(229, 72, 77, 0.34);
+  background: rgba(229, 72, 77, 0.08);
+  color: #ff8a8e;
+}
+.tabLang {
+  margin-left: auto;
+  color: #55555b;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.code {
+  margin: 0;
+  padding: 20px 22px 22px;
+  overflow-x: auto;
+  color: #c8c8cd;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.4px;
+  line-height: 1.72;
+  letter-spacing: -0.01em;
+  tab-size: 2;
+}
+.code:focus-visible {
+  outline: 2px solid rgba(229, 72, 77, 0.5);
+  outline-offset: -2px;
+}
+
+.endpoints {
+  padding: 22px 22px 20px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+}
+.endpointsLabel {
+  display: block;
+  margin-bottom: 16px;
+  color: #6f6f74;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.endpoints li {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 4px 10px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.endpoints li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.method {
+  color: #6f6f74;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding-top: 2px;
+}
+.methodPost {
+  color: var(--red, #e5484d);
+}
+.endpoints code {
+  color: #d6d6d9;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.endpointNote {
+  grid-column: 2;
+  color: #76767c;
+  font-size: 12px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+.endpointsFoot {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  color: #6f6f74;
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+/* ─── FAQ ────────────────────────────────────────────────────────────────── */
+.faq {
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  /* Lets the panel below animate to and from `auto`. Browsers without it open
+     it instantly, which is the behaviour this replaces. */
+  interpolate-size: allow-keywords;
+}
+
+.faqItem::details-content {
+  block-size: 0;
+  overflow: hidden;
+  transition:
+    block-size 0.42s cubic-bezier(0.16, 1, 0.3, 1),
+    content-visibility 0.42s allow-discrete;
+}
+.faqItem[open]::details-content {
+  block-size: auto;
+}
+.faqItem {
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.faqSummary {
+  display: grid;
+  grid-template-columns: 46px 1fr 24px;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 0;
+  cursor: pointer;
+  list-style: none;
+}
+.faqSummary::-webkit-details-marker {
+  display: none;
+}
+.faqSummary:focus-visible {
+  outline: 2px solid rgba(229, 72, 77, 0.5);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.faqIndex {
+  color: var(--red, #e5484d);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.faqQuestion {
+  color: #ededf0;
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+}
+.faqItem:hover .faqQuestion {
+  color: #fff;
+}
+
+/* A plus that becomes a minus; no icon font, no swap on open. */
+.faqSign {
+  position: relative;
+  width: 15px;
+  height: 15px;
+  justify-self: end;
+}
+.faqSign i {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 15px;
+  height: 1.5px;
+  background: #77777d;
+  transform: translateY(-50%);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s ease;
+}
+.faqSign i:last-child {
+  transform: translateY(-50%) rotate(90deg);
+}
+.faqItem[open] .faqSign i {
+  background: var(--red, #e5484d);
+}
+.faqItem[open] .faqSign i:last-child {
+  transform: translateY(-50%) rotate(0deg);
+}
+
+.faqAnswer {
+  max-width: 78ch;
+  padding: 0 24px 24px 58px;
+  color: var(--muted, #9a9a9a);
+  font-size: 13.8px;
+  line-height: 1.68;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Footer ─────────────────────────────────────────────────────────────── */
+.footer {
+  position: relative;
+  z-index: 1;
+  padding: 0 var(--stats-x, 72px) 40px;
+}
+.footerTop {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+  gap: 48px;
+  padding: 52px 0 44px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+.footerLogo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #fff;
+  font-size: 15.5px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.footerLogoSuffix {
+  font-weight: 400;
+}
+
+.footerLine {
+  max-width: 46ch;
+  margin-top: 16px;
+  color: #76767c;
+  font-size: 13px;
+  line-height: 1.65;
+  letter-spacing: -0.01em;
+}
+
+.footerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 5px 11px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  color: #8a8a90;
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+}
+.footerBadge i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--red, #e5484d);
+  box-shadow: 0 0 8px rgba(229, 72, 77, 0.5);
+}
+
+.footerNav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+.footerHeading {
+  margin-bottom: 15px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.footerColumn li {
+  margin-bottom: 10px;
+}
+.footerColumn a {
+  color: #85858b;
+  font-size: 13px;
+  letter-spacing: -0.01em;
+  transition: color 0.2s ease;
+}
+.footerColumn a:hover {
+  color: #fff;
+}
+
+.footerBottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  color: #5c5c62;
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+}
+.footerNote {
+  margin-left: auto;
+}
+
+/* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .devGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .domains {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .body {
+    padding: 20px 18px 22px;
+  }
+  .query {
+    font-size: 14.5px;
+  }
+  .meters {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .facts {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+  }
+  .stances {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .contribRow {
+    grid-template-columns: 1fr 40px;
+    gap: 6px 12px;
+  }
+  .contribAgent {
+    grid-column: 1 / -1;
+  }
+  .domains {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .footer {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  .footerTop {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    padding: 38px 0 32px;
+  }
+  .footerNav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 26px;
+  }
+  .footerNote {
+    margin-left: 0;
+  }
+  .faqSummary {
+    grid-template-columns: 34px 1fr 20px;
+    padding: 18px 0;
+  }
+  .faqQuestion {
+    font-size: 14.5px;
+  }
+  .faqAnswer {
+    padding: 0 0 20px 34px;
+    font-size: 13.2px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .query {
+    font-size: 17.5px;
+  }
+  .domainTitle,
+  .faqQuestion {
+    font-size: 16.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .railMotion,
+  .panel::before,
+  [data-revealed="true"] .track i,
+  [data-revealed="true"] .contribTrack i {
+    animation: none;
+  }
+  .faqItem::details-content {
+    transition: none;
+  }
+  .domain,
+  .chip,
+  .tab,
+  .faqSign i,
+  .footerColumn a {
+    transition: none;
+  }
+}

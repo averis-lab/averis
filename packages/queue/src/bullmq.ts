@@ -1,0 +1,131 @@
+import { Queue, Worker, type ConnectionOptions } from "bullmq";
+import {
+  normalizeJobId,
+  type EnqueueOptions,
+  type MessageHandler,
+  type ProcessOptions,
+  type QueueDriver,
+  type QueueName,
+  type Subscription,
+} from "./types";
+
+export interface BullMQConfig {
+  redisUrl: string;
+  prefix?: string;
+  /** Completed/failed jobs retained, for post-mortem inspection. */
+  keepCompleted?: number;
+  keepFailed?: number;
+}
+
+/** Durable, multi-process driver backed by Redis. */
+export class BullMQDriver implements QueueDriver {
+  readonly name = "bullmq";
+
+  private readonly connection: ConnectionOptions;
+  private readonly prefix: string;
+  private readonly queues = new Map<QueueName, Queue>();
+  private readonly workers = new Set<Worker>();
+  private readonly keepCompleted: number;
+  private readonly keepFailed: number;
+
+  constructor(config: BullMQConfig) {
+    const url = new URL(config.redisUrl);
+    this.connection = {
+      host: url.hostname,
+      port: Number(url.port || 6379),
+      ...(url.password ? { password: url.password } : {}),
+      ...(url.username ? { username: url.username } : {}),
+      // BullMQ requires this; without it blocking commands fail on reconnect.
+      maxRetriesPerRequest: null,
+    };
+    this.prefix = config.prefix ?? "averis";
+    this.keepCompleted = config.keepCompleted ?? 500;
+    this.keepFailed = config.keepFailed ?? 2_000;
+  }
+
+  private queue(name: QueueName): Queue {
+    const existing = this.queues.get(name);
+    if (existing) return existing;
+    const queue = new Queue(name, { connection: this.connection, prefix: this.prefix });
+    this.queues.set(name, queue);
+    return queue;
+  }
+
+  async enqueue<T>(
+    queue: QueueName,
+    name: string,
+    payload: T,
+    options: EnqueueOptions = {},
+  ): Promise<string> {
+    const job = await this.queue(queue).add(name, payload, {
+      attempts: options.attempts ?? 3,
+      backoff: { type: "exponential", delay: options.backoffMs ?? 1_000 },
+      removeOnComplete: this.keepCompleted,
+      removeOnFail: this.keepFailed,
+      ...(options.delayMs ? { delay: options.delayMs } : {}),
+      // A jobId that already exists is silently ignored by BullMQ, which is
+      // the deduplication the lifecycle relies on for at-least-once delivery.
+      ...(options.jobId ? { jobId: normalizeJobId(options.jobId) } : {}),
+    });
+    return String(job.id);
+  }
+
+  process<T>(
+    queue: QueueName,
+    handler: MessageHandler<T>,
+    options: ProcessOptions = {},
+  ): Subscription {
+    const worker = new Worker(
+      queue,
+      async (job) => {
+        await handler({
+          id: String(job.id),
+          name: job.name,
+          payload: job.data as T,
+          attempt: job.attemptsMade + 1,
+        });
+      },
+      {
+        connection: this.connection,
+        prefix: this.prefix,
+        concurrency: options.concurrency ?? 1,
+      },
+    );
+
+    if (options.onFailed) {
+      worker.on("failed", (job, error) => {
+        if (!job) return;
+        void options.onFailed?.(
+          {
+            id: String(job.id),
+            name: job.name,
+            payload: job.data,
+            attempt: job.attemptsMade,
+          },
+          error,
+        );
+      });
+    }
+
+    this.workers.add(worker);
+
+    return {
+      close: async () => {
+        this.workers.delete(worker);
+        await worker.close();
+      },
+    };
+  }
+
+  async depth(queue: QueueName): Promise<number> {
+    const counts = await this.queue(queue).getJobCounts("waiting", "active", "delayed");
+    return (counts["waiting"] ?? 0) + (counts["active"] ?? 0) + (counts["delayed"] ?? 0);
+  }
+
+  async close(): Promise<void> {
+    await Promise.all([...this.workers].map((w) => w.close()));
+    this.workers.clear();
+    await Promise.all([...this.queues.values()].map((q) => q.close()));
+    this.queues.clear();
+  }
+}

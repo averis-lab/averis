@@ -1,0 +1,22 @@
+{
+  "name": "@averis/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "API gateway: authentication, rate limiting, validation, job and intelligence endpoints.",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.0",
+    "@fastify/rate-limit": "^10.2.0",
+    "@averis/db": "*",
+    "@averis/protocol": "*",
+    "@averis/queue": "*",
+    "@averis/types": "*",
+    "dotenv": "^17.0.0",
+    "fastify": "^5.12.1",
+    "zod": "^4.4.3"
+  }
+}
