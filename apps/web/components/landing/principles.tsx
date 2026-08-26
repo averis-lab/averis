@@ -27,8 +27,11 @@ export function Principles() {
       </Reveal>
 
       <Reveal className={`${styles.grid} ${styles.principles}`} stagger>
-        {PRINCIPLES.map((item) => (
+        {PRINCIPLES.map((item, i) => (
           <div key={item.title} className={styles.cell}>
+            <span className={styles.principleIndex} aria-hidden="true">
+              {String(i + 1).padStart(2, "0")}
+            </span>
             <h3 className={styles.cellTitle}>{item.title}</h3>
             <p className={styles.cellBody}>{item.body}</p>
           </div>

@@ -30,11 +30,31 @@ export class BullMQDriver implements QueueDriver {
 
   constructor(config: BullMQConfig) {
     const url = new URL(config.redisUrl);
+    // Percent-decode: a password containing @ or / has to be encoded in the
+    // URL, and ioredis wants the literal.
+    const password = decodeURIComponent(url.password);
+    const username = decodeURIComponent(url.username);
+    // `/2` selects database 2. Managed providers hand out a bare host and
+    // ignore this; a local instance does not.
+    const db = Number(url.pathname.slice(1));
     this.connection = {
       host: url.hostname,
       port: Number(url.port || 6379),
-      ...(url.password ? { password: url.password } : {}),
-      ...(url.username ? { username: url.username } : {}),
+      ...(password ? { password } : {}),
+      ...(username ? { username } : {}),
+      ...(Number.isInteger(db) && db > 0 ? { db } : {}),
+      /**
+       * `rediss://` is TLS. Every managed provider — Upstash, Redis Cloud,
+       * Aiven — serves only that scheme, and ioredis does not infer it from
+       * the URL when the connection is assembled field by field as it is
+       * here: without this the handshake fails with a bare ECONNRESET, which
+       * reads like a network fault rather than a missing option.
+       *
+       * `servername` is what makes SNI work, and the managed providers put
+       * many tenants behind one address, so a TLS session opened without it
+       * is offered the wrong certificate.
+       */
+      ...(url.protocol === "rediss:" ? { tls: { servername: url.hostname } } : {}),
       // BullMQ requires this; without it blocking commands fail on reconnect.
       maxRetriesPerRequest: null,
     };

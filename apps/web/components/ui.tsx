@@ -61,6 +61,58 @@ export function Meter({
   );
 }
 
+/**
+ * A section label with the rule under it.
+ *
+ * The product pages were heading their sections with a bare `text-sm
+ * font-semibold`, which at this size is indistinguishable from body copy set
+ * in bold. A small tracked label on a hairline reads as structure instead, and
+ * matches the way the public pages open their sections.
+ */
+export function SectionHead({
+  children,
+  aside,
+}: {
+  children: React.ReactNode;
+  aside?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex items-baseline justify-between gap-3 border-b border-line pb-2.5">
+      <h2 className="text-[11px] font-medium tracking-[0.12em] text-muted uppercase">
+        {children}
+      </h2>
+      {aside ? <span className="font-mono text-[11px] text-muted/70">{aside}</span> : null}
+    </div>
+  );
+}
+
+/**
+ * A row of figures as one panel, not as a row of separate boxes.
+ *
+ * Four bordered cards side by side draw eight vertical lines to separate four
+ * numbers. This draws three, by letting the container's background show
+ * through a one-pixel gap — which also stays correct when the grid wraps to
+ * two rows, where Tailwind's `divide-x` would put a border down the left of
+ * the first cell of the second row.
+ */
+export function StatStrip({
+  items,
+}: {
+  items: { label: string; value: string; sub?: string }[];
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-4">
+      {items.map((item) => (
+        <div key={item.label} className="bg-surface p-4">
+          <p className="text-xs font-medium text-muted">{item.label}</p>
+          <p className="mt-1 font-mono text-2xl tabular-nums">{item.value}</p>
+          <p className="mt-0.5 text-[11px] text-muted">{item.sub ?? "\u00A0"}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <Card className="p-4">

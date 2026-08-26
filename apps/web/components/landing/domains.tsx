@@ -12,7 +12,7 @@ const DOMAINS = [
   {
     tag: "markets",
     title: "Market reads",
-    body: "Forecasting and positioning questions put to a cohort, with every number traced to a curated pod.",
+    body: "Forecasting and positioning questions put to a cohort, with every number traced to a curated source.",
   },
   {
     tag: "defi",

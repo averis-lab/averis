@@ -18,11 +18,24 @@ COPY packages/consensus/package.json      packages/consensus/package.json
 COPY packages/reputation/package.json     packages/reputation/package.json
 COPY packages/strategy/package.json       packages/strategy/package.json
 COPY packages/budget/package.json         packages/budget/package.json
+COPY packages/execution/package.json      packages/execution/package.json
+COPY packages/protocol/package.json       packages/protocol/package.json
 COPY packages/sdk/package.json            packages/sdk/package.json
 RUN npm ci --ignore-scripts
 
 FROM base AS runtime
-COPY --from=deps /app/node_modules ./node_modules
+# The whole installed tree, not just /app/node_modules.
+#
+# npm hoists what it can to the root, but anything whose version conflicts with
+# the root resolution gets *nested* under the workspace that asked for it —
+# here `@privy-io/react-auth` and `jose` under apps/web, `@fastify/rate-limit`
+# and `fastify-plugin` under apps/api. Copying only the root tree drops every
+# one of them, and nothing complains until far later: `next build` fails with
+# "module not found", and the API would have started and then died reaching for
+# a fastify plugin. `.dockerignore` keeps the host's node_modules out of the
+# build context, so the `COPY . .` below overlays source without clobbering
+# these.
+COPY --from=deps /app ./
 COPY . .
 # `prisma.config.ts` resolves DATABASE_URL eagerly and throws when it is
 # missing, but `generate` never connects to anything — it only reads the schema.

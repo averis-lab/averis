@@ -40,7 +40,7 @@ Requires Node ≥ 20.11 and Docker.
 cp .env.example .env
 npm install
 npm run infra:up        # Postgres on :5433, Redis on :6379
-npm run db:push
+npm run db:deploy       # applies prisma/migrations
 npm run db:seed         # 5 specialist agents
 ```
 
@@ -81,14 +81,14 @@ Only the routes backed by the database need Postgres and Redis:
 |---|---|
 | `/` landing, `/whitepaper` | no |
 | `/datanets` | no (reads Reppo's public API) |
-| `/dashboard`, `/agents`, `/jobs/:id` | **yes** |
+| `/dashboard`, `/agents`, `/jobs/:id`, `/automation` | **yes** |
 | `/playground` | depends on the endpoint being called |
 
 ## Layout
 
 ```
 apps/
-  web/         Next.js app — submit jobs, read intelligence reports
+  web/         Next.js app — submit jobs, read intelligence reports, run automations
   api/         Fastify gateway — auth, rate limiting, validation
   operator/    Autonomous node — discovery, strategy, budget, execution
 packages/
@@ -99,6 +99,7 @@ packages/
   reputation/      Evaluation engine, reputation, agent selection
   strategy/        Operator job-selection policy
   budget/          Pre-execution spend guard and ledger
+  execution/       Trade policy, pure entry/exit planning, execution drivers
   reppo-adapter/   Reppo → provider-neutral normalization
   queue/           BullMQ / in-process driver abstraction
   db/              Shared Prisma client
@@ -176,6 +177,10 @@ stays unchanged.
 | GET | `/v1/jobs/:id/explain` | Verdict, per-claim reasoning, upstream curation behind each source |
 | GET | `/v1/agents` | Registry with reputation |
 | POST | `/v1/agents` | Register an agent |
+| GET | `/v1/automations` | Deployed automations, with derived breaker state |
+| POST | `/v1/automations` | Deploy one — stopped, in paper mode |
+| POST | `/v1/automations/:id/evaluate` | Run one resolved job past its policy |
+| GET | `/v1/automations/:id/positions` | Positions, each linked to the job that opened it |
 
 Auth is `Authorization: Bearer <key>`. An empty `API_KEYS` disables auth and
 logs a loud warning — local development only.
@@ -261,6 +266,47 @@ key *and* pay to get both.
 Only Solana is wired up, and the fee is charged once, up front. Both are noted
 in the gaps below.
 
+### Automation (trading)
+
+`/automation` deploys an agent that turns resolved intelligence jobs into
+positions. It is a **consumer** of the protocol, not part of it: nothing in
+`packages/protocol` knows the `automations` table exists.
+
+```bash
+EXECUTION_DRIVER=paper
+EXECUTION_PRICE_URL='https://<a quote endpoint you verified>?ids={mint}'
+PRIVY_APP_ID=…        # optional: own automations by wallet
+PRIVY_APP_SECRET=…
+```
+
+With Privy set, an automation belongs to the **wallet that deployed it**. The
+browser presents a Privy identity token and the *gateway* verifies its
+signature — a wallet address sent as a parameter is a claim anyone can make, and
+an endpoint that trusts one has authentication in name only. Connecting grants
+**identity, not custody**: Averis asks for no key, holds none, and cannot sign.
+
+A position opens only when the cohort's verdict clears every gate the owner
+configured — confidence and consensus as **separate** floors, a minimum number
+of agents that actually finished, and zero claims citing evidence the runtime
+never retrieved. Every position links back to the job that opened it, so "why
+this one" is answerable in claims and evidence rather than in a signal.
+
+Four things are worth knowing about:
+
+- **There is no live driver, and `LIVE` returns 501.** Same position
+  `SETTLEMENT_DRIVER` takes: an untested transfer path beside code that has
+  never moved a lamport is dangerous precisely because it looks ready.
+- **There is no custody.** No key column, no wallet the server signs with. An
+  automation holds a name, a policy and two switches.
+- **Both defaults refuse.** With no driver nothing opens; with no price source
+  nothing marks. A position is never marked to a guess.
+- **Start and mode are separate switches.** One says the automation may trade,
+  the other says whether those trades cost anything. Stopping blocks new entries
+  only — open positions keep being exited by their own rules.
+
+Nothing polls yet: `evaluate` and `sweep` are called from the dashboard or by a
+caller you write. See [docs/automation.md](docs/automation.md).
+
 ## Configuration
 
 | Variable | Default | Notes |
@@ -273,6 +319,9 @@ in the gaps below.
 | `AGENT_HTTP_ALLOWLIST` | *(unset)* | Enables `http_get` for the listed hosts only |
 | `SETTLEMENT_DRIVER` | `none` | `ledger` records payments made off-chain; no on-chain driver exists |
 | `X402_ENABLED` | `false` | Charges per job over x402; needs `X402_PAY_TO` |
+| `PRIVY_APP_ID` / `PRIVY_APP_SECRET` | *(unset)* | Wallet login; both or neither, half-configured throws at startup |
+| `EXECUTION_DRIVER` | `none` | `paper` books simulated fills; there is no live driver |
+| `EXECUTION_PRICE_URL` | *(unset)* | Quote endpoint for exit sweeps; without one nothing opens or marks |
 
 See `.env.example` for the full set.
 
@@ -283,6 +332,7 @@ npm run typecheck        # whole monorepo
 npm test                 # unit tests, no infrastructure needed
 npm run test:integration # lifecycle tests against Postgres (needs infra:up)
 npm run test:all         # both
+npm run db:status        # which migrations are applied
 npm run build            # web production build
 npm run db:studio        # inspect the database
 ```
@@ -360,14 +410,15 @@ Known gaps, in the order they are worth closing:
 
 | Gap | Consequence |
 |---|---|
-| No Prisma migrations (`db push` only) | No safe deploy, no rollback |
 | `DataItem` never written | A deleted upstream pod orphans an old job's evidence trail |
-| Web traffic shares one server-side key | Browser users have no identity of their own yet |
+| Web traffic shares one server-side key outside `/automation` | Jobs and agents still render under a shared identity; only automations are per-wallet |
 | One oracle (`reppo:` sources only) | Price and on-chain predictions resolve as `UNRESOLVABLE` |
 | No metrics or tracing | Cost, latency and failure rates are invisible |
 | No on-chain settlement driver | Payments must be made elsewhere and recorded with the `ledger` driver |
 | x402 charges a flat fee | A one-agent job costs the same as a five-agent one |
 | x402 is Solana-only | An EVM payer cannot pay; the scheme exists, it is not registered |
+| No automation tick loop | `evaluate` and `sweep` are called by hand; nothing polls for resolved jobs |
+| No price adapter shipped | An automation cannot mark a position until `EXECUTION_PRICE_URL` points somewhere verified |
 
 Deliberately **not** built: protocol token, DAO, governance, custom chain,
 custom inference network, ZK infrastructure, cross-chain.
@@ -379,29 +430,125 @@ process groups, `fly.web.toml` runs the site. Two apps rather than one because
 Fly gives an app a single hostname, and the gateway needs a public one of its
 own for SDK callers.
 
+Neither datastore is Fly's. Postgres is **Supabase** and Redis is a managed
+instance you create yourself; Fly bills only for the machines that run the
+processes. Both fit inside a free tier at this size.
+
 ```bash
-fly launch --no-deploy --copy-config --config fly.toml
-fly secrets set DATABASE_URL=… REDIS_URL=… API_KEYS=…
+fly apps create averis-api
+fly apps create averis-web
+
+fly secrets set --app averis-api \
+  DATABASE_URL='<Supabase pooler, :6543, ?pgbouncer=true&sslmode=require&uselibpqcompat=true>' \
+  DIRECT_DATABASE_URL='<Supabase direct, :5432, ?sslmode=require&uselibpqcompat=true>' \
+  REDIS_URL='rediss://default:<enc-pw>@<host>:<port>' \
+  DATABASE_POOL_MAX='<budget / process count>' \
+  API_KEYS='<root key>' \
+  CORS_ORIGINS='https://averis-web.fly.dev'
 fly deploy --config fly.toml
 
-fly launch --no-deploy --copy-config --config fly.web.toml
-fly secrets set --config fly.web.toml AVERIS_API_KEY=…
+fly secrets set --app averis-web \
+  AVERIS_API_KEY='<the same root key>' \
+  AVERIS_API_URL='http://averis-api.internal:4000'
 fly deploy --config fly.web.toml
 ```
+
+`fly deploy` never creates an app, so `fly apps create` comes first — otherwise
+it fails with `app not found`. App names are global to Fly; if one is taken,
+rename it in the matching `fly.toml` too.
 
 The site reaches the gateway over Fly's private network
 (`AVERIS_API_URL=http://averis-api.internal:4000`), so that hop never leaves the
 organisation. Both apps must be in the same org for that name to resolve.
 
-Three things to get right, each of which fails quietly rather than loudly:
+### Picking the Redis
+
+`fly redis create` provisions Upstash through Fly and bills per command, which
+is the wrong meter for this workload. BullMQ keeps a *blocking* read open per
+queue and re-issues it every few seconds; with four queues that is on the order
+of a million commands a month with no jobs in the system at all. A free tier
+metered by commands drains while the thing sits idle.
+
+Pick one metered by memory instead — Redis Cloud's free tier is 30MB with
+unlimited commands and no sleep, and 30MB is far more than this needs, because
+`keepCompleted`/`keepFailed` in `packages/queue/src/bullmq.ts` cap the retained
+history per queue.
+
+Two properties are non-negotiable whichever provider you choose:
+
+- **Real TCP, not HTTP/REST.** Upstash's REST endpoint and similar serverless
+  Redis APIs cannot serve a blocking read, so BullMQ cannot run on them at all.
+- **`rediss://`, and the password percent-encoded.** Managed Redis is TLS-only.
+  `BullMQDriver` reads the scheme and enables TLS with SNI, which the shared
+  hostnames these providers use require in order to present the right
+  certificate.
+
+`QUEUE_DRIVER=memory` removes Redis entirely, but it is only correct inside a
+single process: the API would accept jobs that no worker ever sees. It is for
+the demo and CI, not for the two-process-group deployment above.
+
+### Why two Supabase connection strings
+
+They are not interchangeable, and using one for both is the mistake that looks
+like it works.
+
+| Variable | Supabase string | Used by |
+|---|---|---|
+| `DATABASE_URL` | pooler (Supavisor), `:6543`, `?pgbouncer=true` | the app |
+| `DIRECT_DATABASE_URL` | direct session, `:5432` | migrations |
+
+Both need `sslmode=require&uselibpqcompat=true`, and a password that has been
+percent-encoded. Supabase's pooler presents a certificate from a private CA,
+and node-postgres ≥8.11 reads a bare `sslmode=require` as verify-full — so
+without the compat flag every connection fails with `self-signed certificate in
+certificate chain`, which reads like a network problem rather than a spelling
+one. The flag is pg's own switch back to libpq's meaning of the word. To verify
+the chain properly instead, download the project CA from Settings → Database →
+SSL Configuration and use `sslmode=verify-full&sslrootcert=<path>` with no flag.
+
+The app wants the pooler because it issues many short queries, and a direct
+connection per machine would burn the project's connection budget. Migrations
+want the session connection because a transaction-mode pooler may hand
+consecutive statements to different backends, which a migration does not
+survive. `prisma.config.ts` prefers `DIRECT_DATABASE_URL` automatically, so the
+release command needs no override.
+
+Two consequences worth knowing:
+
+- **`DATABASE_POOL_MAX` is shared, not per process.** The API, each worker and
+  the operator each hold their own pool against the same budget, so three
+  processes at the default of 10 is already 30 connections. Lower it for
+  Supabase — but derive it from process count, do not just pick a small number.
+  Below this repository's own concurrency it does not slow things down, it
+  breaks them: an interactive transaction that waits too long for a free
+  connection is rolled back underneath itself and reports `Transaction already
+  closed`, which points nowhere near the pool. Measured: at 5 the integration
+  suite fails about one run in three.
+- **`pg_advisory_xact_lock` must stay transaction-scoped.** The budget guard
+  relies on it, and it is safe through a transaction pooler precisely because
+  it is transaction scoped. A session-scoped `pg_advisory_lock` would not be.
+
+Local development is unchanged: `npm run infra:up` still runs Postgres in
+Docker, `DIRECT_DATABASE_URL` stays empty, and both resolve to the same string.
+The integration tests still create and truncate their own `averis_test`
+database there, which is why they are pinned to Docker rather than Supabase —
+they would otherwise truncate tables in a hosted project.
+
+Four things to get right, each of which fails quietly rather than loudly:
 
 - **`REDIS_URL` must be a real TCP Redis.** BullMQ uses blocking commands; an
   HTTP/REST endpoint will not work.
 - **`QUEUE_DRIVER=bullmq`.** The memory driver is only correct inside a single
   process — with it the API accepts jobs no worker will ever see.
-- **Run `prisma migrate deploy` before the first release.** With no migrations
-  directory it exits successfully having applied nothing, and the app then
-  starts against an empty schema.
+- **Keep `prisma/migrations` complete.** `fly.toml` runs `prisma migrate
+  deploy` as its release command, and against an incomplete directory it exits
+  successfully having applied nothing — the app then starts on a half-built
+  schema. Run `npx prisma migrate dev --name <what-changed>` after any schema
+  change and commit the result; `npm run db:status` tells you where you stand.
+- **Authoring a migration against Supabase needs `SHADOW_DATABASE_URL`.**
+  `migrate dev` creates a scratch database with `CREATE DATABASE`, which hosted
+  Postgres refuses. Point it at the local Docker instance; it holds no real
+  data.
 
 Vercel can host the site, but not the workers: they hold blocking queue
 subscriptions and Vercel has no always-on process. Moving everything there
@@ -416,4 +563,5 @@ a deploy target.
 - [Protocol](docs/protocol.md) — lifecycle, evidence, evaluation, consensus, reputation
 - [Agents](docs/agent.md) — runtime, LLM abstraction, tools, least privilege
 - [Operator](docs/operator.md) — autonomy, strategy, budget guard, transaction safety
+- [Automation](docs/automation.md) — trading policy, gates, breaker, why there is no live driver
 - [Reppo integration](docs/reppo-integration.md) — verified endpoints, curation → evidence weight

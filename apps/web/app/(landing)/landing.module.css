@@ -38,18 +38,19 @@
   --header-y: 22px;
   /* What the sticky bar occupies; the hero subtracts it so the fold lands
      where it did. Built from tokens, so it tracks every breakpoint. */
-  --header-h: calc(var(--header-y) + var(--btn-h) + 10px);
+  --header-h: calc(var(--header-y) + var(--btn-h) + 26px);
   --header-x: 40px;
   --stats-x: 72px;
   --stats-y: 36px;
   --hero-gap: 85px;
-  --copy-max: 860px;
+  --copy-max: 1080px;
   --lede-max: 470px;
 
   --ui: var(--font-inter), "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --serif: var(--font-instrument-serif), "Instrument Serif", "Times New Roman", Times, serif;
 
   position: relative;
+  counter-reset: section;
   background: #000000;
   background: var(--bg, #000000);
   color: #ffffff;
@@ -161,20 +162,56 @@
 .hero {
   display: flex;
   align-items: flex-end;
-  justify-content: center;
-  padding: 8px 24px var(--hero-gap);
+  justify-content: flex-start;
+  padding: 8px var(--stats-x) var(--hero-gap);
   min-height: 0;
 }
 
+/*
+ * The split.
+ *
+ * A centred stack — badge, headline, paragraph, two buttons, all on one axis —
+ * is the arrangement every hero on the web already uses, and it forces the
+ * headline to stay narrow so the paragraph under it does not look stranded.
+ * Setting the supporting column beside the headline instead lets the headline
+ * run at its natural measure, gives the page a left edge shared with the nav,
+ * the stats rail and every section below, and puts the call to action at the
+ * end of the reading path rather than under the middle of it.
+ */
 .heroCopy {
   position: relative;
   z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 30%, 420px);
+  align-items: stretch;
+  column-gap: 44px;
+  text-align: left;
   max-width: var(--copy-max);
   width: 100%;
+}
+
+.heroLead {
+  grid-column: 1;
+  min-width: 0;
+  align-self: end;
+}
+
+/*
+ * The hairline is the same device the sections below use to separate columns,
+ * which is what keeps the hero and the page reading as one design rather than
+ * a banner sitting on top of an unrelated document. It runs the full height of
+ * the headline because the column stretches; the content inside sits at the
+ * bottom of it.
+ */
+.heroSupport {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-width: 0;
+  padding-left: 28px;
+  padding-bottom: 5px;
+  border-left: 1px solid var(--border-soft);
 }
 
 .badge {
@@ -222,7 +259,7 @@
 .headline {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   font-family: var(--ui);
   font-size: var(--h1);
   font-weight: 500;
@@ -230,7 +267,14 @@
   line-height: 1.12;
   color: #fff;
 }
-.headlineLine { display: block; overflow: hidden; padding: 0.06em 0.15em 0.14em; }
+/* The inline padding is headroom for the serif italic's overhang; the negative
+   margin puts the glyphs back on the column's left edge. */
+.headlineLine {
+  display: block;
+  overflow: hidden;
+  margin-left: -0.15em;
+  padding: 0.06em 0.15em 0.14em;
+}
 .headline em {
   font-family: var(--serif);
   font-style: italic;
@@ -244,6 +288,7 @@
 .lede {
   max-width: var(--lede-max);
   margin-top: 18px;
+  text-wrap: pretty;
   color: #9a9a9a;
   font-size: var(--lede);
   font-weight: 400;
@@ -255,28 +300,134 @@
 .heroActions {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 10px;
   margin-top: 26px;
 }
 
-/* ─── Stats ──────────────────────────────────────────────────────────────── */
-.stats {
-  display: flex;
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+/*
+ * Shared by the hero and the closing block, which is why the geometry lives
+ * here and only the surface differs between the two variants.
+ */
+.btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 0 var(--stats-x) var(--stats-y);
+  justify-content: center;
+  gap: 9px;
+  height: var(--hero-btn-h);
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: var(--ui);
+  font-size: var(--btn);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color 0.38s ease,
+    border-color 0.38s ease,
+    box-shadow 0.38s ease,
+    color 0.38s ease,
+    transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn:hover {
+  transform: translateY(-1px);
+}
+.btn:active {
+  transform: translateY(0);
+}
+
+.btnSolid {
+  border-color: #fff;
+  background: linear-gradient(180deg, #ffffff 0%, #ededed 52%, #d2d2d2 100%);
+  color: #0b0b0c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 14px 34px -18px rgba(255, 255, 255, 0.5);
+}
+/* The same slow sweep the header's button carries, so the two read as one
+   family rather than two buttons that happen to both be white. */
+.btnSolid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.5) 48%, transparent 76%);
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+}
+.btnSolid:hover {
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 0 26px var(--red-glow);
+}
+.btnSolid:hover::after {
+  transform: translateX(130%);
+}
+
+.btnGhost {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ededf0;
+}
+.btnGhost:hover {
+  border-color: rgba(229, 72, 77, 0.55);
+  background: rgba(229, 72, 77, 0.09);
+  color: #fff;
+  box-shadow: 0 0 24px var(--red-glow-soft);
+}
+
+.btnArrow {
+  display: block;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn:hover .btnArrow {
+  transform: translateX(3px);
+}
+
+/* ─── Stats ──────────────────────────────────────────────────────────────── */
+/*
+ * Three facts on a ruled rail rather than three phrases floating in a row. The
+ * hairlines are the same ones the sections below draw between their columns,
+ * and the rail's edges land on --stats-x, so the hero closes on the grid the
+ * rest of the page opens with.
+ */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  margin-inline: var(--stats-x);
+  padding-bottom: var(--stats-y);
   padding-bottom: max(var(--stats-y), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-soft);
   color: #d8d8d8;
 }
 .stat {
   display: inline-flex;
   align-items: center;
   gap: 14px;
+  min-width: 0;
+  padding: 19px 22px 0;
+  border-left: 1px solid var(--border-soft);
   font-size: var(--stat-size);
   letter-spacing: -0.015em;
   white-space: nowrap;
+}
+/* Flush to the rail's left edge, so the first column lines up with the
+   headline above it and the section grids below. */
+.stat:first-child {
+  padding-left: 0;
+  border-left: 0;
 }
 .statIcon { width: 20px; height: 20px; flex: none; display: block; }
 .statIconWide { width: 38px; height: 21px; flex: none; display: block; }
@@ -359,7 +510,7 @@
     --btn: 15px; --btn-h: 44px; --hero-btn-h: 48px;
     --h1: 64px; --lede: 18px; --badge: 13.5px; --stat-size: 15px;
     --header-y: 28px; --header-x: 64px; --stats-x: 96px; --stats-y: 44px;
-    --copy-max: 980px; --lede-max: 540px;
+    --copy-max: 1240px; --lede-max: 540px;
   }
   .badge { margin-bottom: 26px; }
   .lede { margin-top: 22px; }
@@ -375,7 +526,7 @@
     --btn: 16px; --btn-h: 48px; --hero-btn-h: 52px;
     --h1: 76px; --lede: 20px; --badge: 14.5px; --stat-size: 16px;
     --header-y: 32px; --header-x: 80px; --stats-x: 120px; --stats-y: 52px;
-    --copy-max: 1120px; --lede-max: 620px;
+    --copy-max: 1400px; --lede-max: 620px;
   }
   .btn { padding: 0 22px; }
   .heroActions .btn { padding: 0 22px; }
@@ -387,13 +538,13 @@
 @media (min-width: 2560px) {
   .root {
     --h1: 88px; --lede: 22px; --header-x: 120px; --stats-x: 160px;
-    --copy-max: 1280px; --lede-max: 680px;
+    --copy-max: 1560px; --lede-max: 680px;
   }
 }
 
 /* ─── 1280–1599 ──────────────────────────────────────────────────────────── */
 @media (min-width: 1280px) and (max-width: 1599px) {
-  .root { --h1: 54px; --lede: 16px; --header-x: 48px; --stats-x: 80px; --copy-max: 900px; }
+  .root { --h1: 54px; --lede: 16px; --header-x: 48px; --stats-x: 80px; --copy-max: 1120px; }
 }
 
 /* ─── 901–1279 ───────────────────────────────────────────────────────────── */
@@ -403,11 +554,33 @@
     --btn: 13px; --btn-h: 38px; --hero-btn-h: 40px;
     --h1: 42px; --lede: 15px; --badge: 12px; --stat-size: 12.5px;
     --header-y: 16px; --header-x: 28px; --stats-x: 36px; --stats-y: 28px;
-    --hero-gap: 64px; --copy-max: 760px; --lede-max: 440px;
+    --hero-gap: 64px; --copy-max: 820px; --lede-max: 440px;
   }
   .badge { margin-bottom: 16px; }
   .lede { margin-top: 14px; }
   .heroActions { margin-top: 20px; }
+  /* 276px a cell at this width: the longest label needs two lines. */
+  .stat { padding-inline: 16px; white-space: normal; }
+  .stat:first-child { padding-left: 0; }
+}
+
+/* ─── The split collapses ────────────────────────────────────────────────── */
+/*
+ * Below this the supporting column is narrower than a comfortable measure, so
+ * it goes back under the headline — still left-aligned, still on the grid.
+ */
+@media (max-width: 1100px) {
+  .heroCopy {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0;
+  }
+  .heroSupport {
+    grid-column: 1;
+    padding-left: 0;
+    padding-bottom: 0;
+    border-left: 0;
+  }
+  .lede { max-width: var(--lede-max); }
 }
 
 /* ─── Short viewports ────────────────────────────────────────────────────── */
@@ -427,9 +600,19 @@
 
 /* ─── ≥901 desktop lock: one frame, no scroll ────────────────────────────── */
 @media (min-width: 901px) {
-  /* The hero fills exactly one viewport; explanatory sections follow below, so
-     the page scrolls rather than locking to a single frame. */
-  .page { height: 100vh; height: 100dvh; }
+  /*
+   * The hero fills exactly one viewport; explanatory sections follow below, so
+   * the page scrolls rather than locking to a single frame.
+   *
+   * The header is sticky, so it sits *in* flow above this frame: a plain
+   * 100dvh here made the first screen a header taller than the viewport and
+   * pushed the stats rail under the fold. The frame is the viewport minus what
+   * the bar occupies.
+   */
+  .page {
+    height: calc(100vh - var(--header-h));
+    height: calc(100dvh - var(--header-h));
+  }
 }
 
 /* ─── ≤900 phone ─────────────────────────────────────────────────────────── */
@@ -444,11 +627,18 @@
     --hero-gap: 36px;
   }
 
-  .hero { padding: 20px 20px 64px; align-items: flex-end; }
+  .hero { padding: 20px var(--stats-x) 56px; align-items: flex-end; }
   .heroCopy, .lede { max-width: 100%; }
 
-  .stats { flex-direction: column; align-items: center; gap: 16px; }
-  .stat { white-space: normal; }
+  .stats { grid-template-columns: minmax(0, 1fr); }
+  .stat {
+    padding: 13px 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--border-soft);
+    white-space: normal;
+  }
+  .stat:first-child { padding-top: 15px; }
+  .stat:last-child { border-bottom: 0; }
 }
 
 /* ─── ≤560 ───────────────────────────────────────────────────────────────── */
@@ -464,6 +654,7 @@
 .section {
   position: relative;
   z-index: 1;
+  counter-increment: section;
   padding: var(--section-y, 104px) var(--stats-x) 0;
 }
 
@@ -473,12 +664,46 @@
   padding-top: var(--section-gap-y, 88px);
 }
 
+/*
+ * The section head.
+ *
+ * Every section used to open with the same 620px block — eyebrow, title,
+ * paragraph, stacked — which is what made the page read as a list of identical
+ * slabs no matter how different the content underneath was. It now opens the
+ * way the hero does: a rule, a label on it, the statement holding the left and
+ * the qualifying sentence set beside it behind a hairline.
+ *
+ * Sections that have no lede simply leave the second column empty; the head
+ * still lands on the same rule and the same left edge.
+ */
 .sectionHead {
-  max-width: 620px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 29%, 420px);
+  align-items: stretch;
+  column-gap: 44px;
   margin-bottom: var(--section-gap, 46px);
+  padding-top: 24px;
+  border-top: 1px solid var(--border-soft);
+}
+
+/* The running number, set on the rule opposite the eyebrow. The counter is
+   incremented by .section itself, so sections can be reordered or removed
+   without anything needing to be renumbered by hand. */
+.sectionHead::after {
+  content: counter(section, decimal-leading-zero);
+  position: absolute;
+  top: 24px;
+  right: 0;
+  color: #46464c;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
 }
 
 .eyebrow {
+  grid-column: 1 / -1;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 9px;
@@ -499,6 +724,11 @@
 }
 
 .sectionTitle {
+  grid-column: 1;
+  align-self: end;
+  /* Two lines at every breakpoint: measured in ch so the cap tracks the type
+     scale instead of being re-tuned at each one. */
+  max-width: 30ch;
   font-size: var(--section-title, 30px);
   font-weight: 500;
   letter-spacing: -0.035em;
@@ -507,8 +737,20 @@
   text-wrap: balance;
 }
 
+/*
+ * Set beside the title rather than under it, behind the same hairline the hero
+ * uses and the cells below reuse. Stretched and bottom-aligned so the rule
+ * runs the full height of the title and the two columns share a baseline.
+ */
 .sectionLede {
-  margin-top: 15px;
+  grid-column: 2;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-left: 28px;
+  padding-bottom: 4px;
+  border-left: 1px solid var(--border-soft);
   color: var(--muted);
   font-size: 15px;
   line-height: 1.62;
@@ -526,9 +768,30 @@
 .principles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 .cell {
+  position: relative;
   padding: 30px 30px 34px 26px;
   border-left: 1px solid var(--border-soft);
   transition: background-color 0.35s ease;
+}
+
+/*
+ * A node where each step meets the rule above it. The four steps are a
+ * sequence, not four unrelated facts, and this is the cheapest way to say so:
+ * it draws on the hairline that is already there instead of adding a diagram.
+ */
+.steps .cell::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 0 0 8px var(--red-glow-soft);
+}
+.steps .cell:first-child::before {
+  left: 0;
 }
 .cell:first-child {
   padding-left: 0;
@@ -543,6 +806,26 @@
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 11px;
   letter-spacing: 0.08em;
+}
+
+/*
+ * The three principles carried no marker at all, which left the section
+ * reading as three loose paragraphs. A serif numeral picks up the one italic
+ * the hero uses, and stays quiet until the cell is hovered.
+ */
+.principleIndex {
+  display: block;
+  margin-bottom: 16px;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 34px;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #3a3a40;
+  transition: color 0.35s ease;
+}
+.cell:hover .principleIndex {
+  color: var(--red);
 }
 
 .cellTitle {
@@ -562,21 +845,29 @@
 }
 
 /* ─── Closing ────────────────────────────────────────────────────────────── */
+/*
+ * The same split one last time. Centred, it was the only block on the page not
+ * standing on the left edge, which read as a stock call-to-action bolted to the
+ * end rather than the last paragraph of the same document.
+ */
 .closing {
   position: relative;
   z-index: 1;
-  padding: var(--section-y, 104px) var(--stats-x) 112px;
-  text-align: center;
+  padding: var(--section-y, 104px) var(--stats-x) 96px;
 }
 
 .closingInner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(260px, 29%, 420px);
+  align-items: end;
+  column-gap: 44px;
   padding-top: var(--section-y, 104px);
   border-top: 1px solid var(--border-soft);
 }
 
 .closingTitle {
-  max-width: 20ch;
-  margin: 0 auto;
+  grid-column: 1;
+  max-width: 17ch;
   font-size: var(--closing-title, 34px);
   font-weight: 500;
   letter-spacing: -0.04em;
@@ -594,13 +885,13 @@
 }
 
 .closingActions {
+  grid-column: 1;
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 10px;
   margin-top: 30px;
 }
-.closingActions .btn { height: var(--hero-btn-h); padding: 0 18px; }
+.closingActions .btn { padding: 0 18px; }
 
 /* The only link in the closing block; it has to read as one without turning
    the sentence into a row of coloured words. */
@@ -616,9 +907,18 @@
   text-decoration-color: var(--red);
 }
 
+/* Spans both rows of the left column so the hairline runs the height of the
+   whole block, and sits at its foot beside the buttons. */
 .footnote {
-  max-width: 60ch;
-  margin: 36px auto 0;
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-left: 28px;
+  padding-bottom: 5px;
+  border-left: 1px solid var(--border-soft);
   color: #6f6f74;
   font-size: 12px;
   line-height: 1.62;
@@ -633,7 +933,32 @@
 }
 
 @media (max-width: 1100px) {
+  /* Same breakpoint as the hero's split, so the whole page changes shape at
+     one width rather than section by section. */
+  .sectionHead,
+  .closingInner { grid-template-columns: minmax(0, 1fr); }
+  .sectionTitle { max-width: 34ch; }
+  .closingTitle { max-width: 22ch; }
+  .footnote {
+    grid-column: 1;
+    grid-row: auto;
+    max-width: 60ch;
+    margin-top: 32px;
+    padding-left: 0;
+    padding-bottom: 0;
+    border-left: 0;
+  }
+  .sectionLede {
+    grid-column: 1;
+    margin-top: 15px;
+    padding-left: 0;
+    padding-bottom: 0;
+    border-left: 0;
+  }
+
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* The second row starts a new left edge; its node moves with it. */
+  .steps .cell:nth-child(3)::before { left: 0; }
   /* Second row starts a new left edge, and the first row gains a rule below. */
   .steps .cell:nth-child(3) { padding-left: 0; border-left: 0; }
   .steps .cell:nth-child(-n + 2) { border-bottom: 1px solid var(--border-soft); }
@@ -642,8 +967,9 @@
 @media (max-width: 900px) {
   .root { --section-y: 72px; --section-gap-y: 64px; --section-title: 25px; --closing-title: 27px; }
   .section, .closing { padding-left: max(20px, env(safe-area-inset-left)); padding-right: max(20px, env(safe-area-inset-right)); }
-  .closing { padding-bottom: 84px; }
-  .sectionHead { margin-bottom: 34px; }
+  .closing { padding-bottom: 76px; }
+  .sectionHead { margin-bottom: 34px; padding-top: 20px; }
+  .sectionHead::after { top: 20px; }
 
   .steps, .principles { grid-template-columns: minmax(0, 1fr); }
   .cell {
@@ -651,6 +977,8 @@
     border-left: 0;
     border-bottom: 1px solid var(--border-soft);
   }
+  .steps .cell::before { left: 0; }
+  .principleIndex { margin-bottom: 12px; font-size: 30px; }
   .cell:hover { background-color: transparent; }
   .grid .cell:last-child { border-bottom: 0; }
   .closingInner { padding-top: var(--section-y, 72px); }

@@ -520,11 +520,406 @@
   color: #e4e4e8;
 }
 
+/* ─── Masthead extras ────────────────────────────────────────────────────── */
+/*
+ * The motto is the one piece of display type this page allows itself. It sits
+ * under the title in the same italic serif the product uses for emphasis, so
+ * the document is unmistakably the same publication as the site around it.
+ */
+.motto {
+  margin-top: 14px;
+  color: var(--red, #e5484d);
+  font-family: var(--serif), "Instrument Serif", Times, serif;
+  font-style: italic;
+  font-size: var(--paper-motto, 23px);
+  letter-spacing: -0.02em;
+}
+
+.standfirst {
+  max-width: 66ch;
+  margin-top: 18px;
+  color: #a4a4ab;
+  font-size: 15.6px;
+  line-height: 1.68;
+  letter-spacing: -0.016em;
+}
+
+/*
+ * The disclaimer.
+ *
+ * Deliberately quiet: it is a legal qualification, not part of the argument,
+ * so it takes a plain box and small type rather than the abstract's red rule.
+ * It still sits above the contents, because a reader is entitled to know which
+ * parts of what follows are proposals before reading any of them.
+ */
+.notice {
+  max-width: 74ch;
+  margin-top: 30px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.noticeLabel {
+  display: block;
+  margin-bottom: 10px;
+  color: #8a8a90;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.notice p {
+  color: #8b8b92;
+  font-size: 12.8px;
+  line-height: 1.7;
+  letter-spacing: -0.008em;
+}
+.notice p + p {
+  margin-top: 10px;
+}
+
+/* ─── Contents parts ─────────────────────────────────────────────────────── */
+/* Thirty-five entries is a wall. The parts break the rail into five passes a
+   reader can hold in their head. */
+.tocPart {
+  display: block;
+  margin: 20px 0 6px;
+  color: #55555b;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.toc li:first-child .tocPart {
+  margin-top: 0;
+}
+
+/* ─── Pull quotes ────────────────────────────────────────────────────────── */
+/*
+ * The document states several positions as single sentences. Set as pull
+ * quotes they carry the weight they are meant to; set as paragraphs they
+ * disappear into the ones around them.
+ */
+.quote {
+  position: relative;
+  margin: 30px 0 10px;
+  padding-left: 32px;
+  color: #e9e9ec;
+  font-family: var(--serif), "Instrument Serif", Times, serif;
+  font-style: italic;
+  font-size: var(--paper-quote, 21px);
+  line-height: 1.48;
+  letter-spacing: -0.022em;
+}
+.quote::before {
+  content: "\201C";
+  position: absolute;
+  top: -0.06em;
+  left: 0;
+  color: var(--red, #e5484d);
+  font-size: 2em;
+  line-height: 1;
+}
+
+/* A question the phase is meant to answer, rather than a position it takes. */
+.ask {
+  margin-top: 22px;
+  padding: 15px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.askLabel {
+  display: block;
+  margin-bottom: 7px;
+  color: #6f6f74;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.ask p {
+  color: #d4d4d9;
+  font-size: 14.2px;
+  line-height: 1.6;
+  letter-spacing: -0.015em;
+}
+
+/* ─── Chains ─────────────────────────────────────────────────────────────── */
+/*
+ * The source sets its progressions as columns of arrows. Ten stacked rows of
+ * one word each is a very tall way to say a short thing, so they run
+ * horizontally here and wrap where they must — same sequence, a fifth of the
+ * height, and legible on a phone.
+ */
+.chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 5px;
+  margin: 24px 0 8px;
+}
+.chainStep {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 13px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.022);
+  color: #c6c6cb;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.6px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+/* The terminal step is what the sequence is for; it carries the accent. */
+.chainEnd {
+  border-color: rgba(229, 72, 77, 0.34);
+  background: rgba(229, 72, 77, 0.07);
+  color: #ff8a8e;
+}
+.chainArrow {
+  padding: 0 2px;
+  color: #4a4a50;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ─── Field tags ─────────────────────────────────────────────────────────── */
+/* Schema-ish lists — profile fields, request parameters — are enumerations,
+   not prose, and read faster as a set of tokens than as bullets. */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 18px;
+}
+.tag {
+  padding: 5px 11px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.022);
+  color: #9c9ca3;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: -0.005em;
+}
+
+/* ─── Definition lists ───────────────────────────────────────────────────── */
+/* Term-and-explanation pairs: evaluation dimensions, design principles, open
+   research questions, and the boundaries section all take this shape. */
+.terms {
+  margin-top: 20px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.terms > div {
+  padding: 15px 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.terms dt {
+  margin-bottom: 5px;
+  color: #ededf0;
+  font-size: 14.2px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+}
+.terms dd {
+  color: #a2a2a9;
+  font-size: 13.6px;
+  line-height: 1.68;
+  letter-spacing: -0.012em;
+}
+
+/* ─── Phases ─────────────────────────────────────────────────────────────── */
+.phases {
+  margin-top: 24px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.phase {
+  padding: 26px 0 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.phaseHead {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 10px;
+}
+.phaseIndex {
+  color: var(--red, #e5484d);
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.phaseTitle {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.028em;
+}
+.phaseObjective {
+  color: #c6c6cb;
+  font-size: 14.2px;
+  line-height: 1.7;
+  letter-spacing: -0.014em;
+}
+
+/* ─── Key figure ─────────────────────────────────────────────────────────── */
+/* One number the whole section is about. */
+.keyFigure {
+  margin: 24px 0 8px;
+  padding: 22px 24px;
+  border: 1px solid rgba(229, 72, 77, 0.24);
+  border-radius: 12px;
+  background: rgba(229, 72, 77, 0.045);
+}
+.keyFigureLabel {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--red, #e5484d);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.keyFigureValue {
+  display: block;
+  color: #fff;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: clamp(21px, 4.4vw, 30px);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.keyFigureValue b {
+  margin-left: 9px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.58em;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+/* The summed row of an allocation table is a result, not another entry. */
+.totalRow th,
+.totalRow td {
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  color: #fff;
+}
+.totalRow .numeric {
+  color: #fff;
+}
+
+/* ─── Agent passport ─────────────────────────────────────────────────────── */
+/* The passport is a record an external system would read; drawing it as one
+   says more about the idea than the same fields set as a list. */
+.passport {
+  margin: 26px 0 8px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background:
+    radial-gradient(120% 130% at 100% 0%, rgba(229, 72, 77, 0.09) 0%, rgba(0, 0, 0, 0) 62%),
+    rgba(255, 255, 255, 0.018);
+  overflow: hidden;
+}
+.passportHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.passportId {
+  color: #dcdcde;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+}
+.passportSeal {
+  padding: 4px 10px;
+  border: 1px solid rgba(229, 72, 77, 0.36);
+  border-radius: 999px;
+  background: rgba(229, 72, 77, 0.08);
+  color: #ff8a8e;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+}
+.passportGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.passportField {
+  padding: 16px 18px;
+  background: #050505;
+}
+.passportLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #6f6f74;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.passportValue {
+  color: #e8e8ea;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Colophon ───────────────────────────────────────────────────────────── */
+/* The document closes on what it set out to do, in the same labelled-field
+   form the masthead opened with. */
+.colophon {
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.colophonRow {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 8px 18px;
+  padding: 15px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.colophonLabel {
+  padding-top: 4px;
+  color: #6f6f74;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.colophonValue {
+  color: #d2d2d7;
+  font-size: 14.4px;
+  line-height: 1.66;
+  letter-spacing: -0.015em;
+}
+.colophonValue em {
+  color: #fff;
+  font-family: var(--serif), "Instrument Serif", Times, serif;
+  font-style: italic;
+  font-size: 1.1em;
+}
+.colophonMark {
+  margin-top: 30px;
+  color: #fff;
+  font-size: clamp(24px, 5vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.042em;
+  line-height: 1.15;
+}
+.colophonMark span {
+  color: var(--red, #e5484d);
+}
+
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
 @media (min-width: 1600px) {
   .page {
     --paper-title: 40px;
     --paper-h2: 28px;
+    --paper-motto: 27px;
+    --paper-quote: 24px;
   }
   .masthead,
   .body {
@@ -570,6 +965,8 @@
   .page {
     --paper-title: 25px;
     --paper-h2: 20px;
+    --paper-motto: 19px;
+    --paper-quote: 18px;
     padding-left: max(20px, env(safe-area-inset-left));
     padding-right: max(20px, env(safe-area-inset-right));
   }
@@ -607,13 +1004,26 @@
   }
   .figureBody,
   .equation,
-  .endnote {
+  .endnote,
+  .keyFigure,
+  .notice,
+  .ask {
     padding-left: 16px;
     padding-right: 16px;
   }
   .caption {
     padding-left: 16px;
     padding-right: 16px;
+  }
+  /* Three fields across is 90px a column on a phone; one is readable. */
+  .passportGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .colophonRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .quote {
+    padding-left: 24px;
   }
 }
 
@@ -661,10 +1071,46 @@
   .figure,
   .equation,
   .endnote,
-  .abstract {
+  .abstract,
+  .notice,
+  .keyFigure,
+  .ask,
+  .passport,
+  .chainStep,
+  .tag {
     border-color: #bbb;
     background: none;
     break-inside: avoid;
+  }
+  .phase,
+  .terms > div,
+  .colophonRow {
+    break-inside: avoid;
+  }
+  .quote,
+  .phaseTitle,
+  .terms dt,
+  .colophonMark,
+  .passportValue,
+  .keyFigureValue {
+    color: #000;
+  }
+  .terms dd,
+  .phaseObjective,
+  .colophonValue,
+  .notice p,
+  .ask p,
+  .chainStep,
+  .tag,
+  .standfirst {
+    color: #1a1a1a;
+  }
+  .passportField {
+    background: none;
+  }
+  .passportGrid {
+    background: none;
+    gap: 0;
   }
   .figureBody pre,
   .equation,

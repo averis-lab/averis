@@ -3,6 +3,7 @@
 import { useState } from "react";
 import styles from "@/app/(landing)/landing.module.css";
 import s from "./sections.module.css";
+import { Reveal } from "./reveal";
 
 /**
  * Both snippets are the real surface: the SDK call is the one documented in
@@ -66,7 +67,7 @@ export function Developers() {
 
   return (
     <section className={styles.section} id="developers">
-      <div className={styles.sectionHead}>
+      <Reveal className={styles.sectionHead}>
         <span className={styles.eyebrow}>For developers</span>
         <h2 className={styles.sectionTitle}>One call in, an auditable report out.</h2>
         <p className={styles.sectionLede}>
@@ -76,7 +77,7 @@ export function Developers() {
           called from the in-app playground, which shows the equivalent curl and SDK code for
           whatever you just sent.
         </p>
-      </div>
+      </Reveal>
 
       <div className={s.devGrid}>
         <div className={s.codeCard}>

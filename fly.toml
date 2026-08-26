@@ -1,15 +1,16 @@
 # Averis on Fly.io
 #
-# One image, two process groups. The Dockerfile already builds everything the
-# backend needs, so the API and the workers are the same image with a different
-# command — which is exactly the shape Fly's `processes` block expects.
+# One machine: the HTTP gateway and the four lifecycle workers in a single
+# process. They used to be two process groups talking through Redis; the queue
+# now lives in Postgres (pgmq), which is durable and visible across processes,
+# so the split became a cost rather than a requirement.
 #
 # The web app is a second Fly app from this same image — see fly.web.toml.
 # Two apps rather than one, because Fly gives an app a single hostname and both
 # the gateway and the site need a public one of their own.
 #
 #   fly launch --no-deploy --copy-config --config fly.toml
-#   fly secrets set DATABASE_URL=… REDIS_URL=… API_KEYS=…
+#   fly secrets set DATABASE_URL=… DIRECT_DATABASE_URL=… API_KEYS=…
 #   fly deploy
 
 app = "averis-api"
@@ -21,47 +22,78 @@ primary_region = "sin"          # keep this in the same region as Postgres
 [deploy]
   # Runs once, before the new release is released.
   #
-  # REQUIRES committed migrations. This repository still uses `prisma db push`,
-  # and `migrate deploy` with no migrations directory exits 0 without applying
-  # anything — the app would then start against an empty schema and fail in a
-  # way that looks like a code bug. Generate a baseline first:
-  #   npx prisma migrate dev --name init   (then commit prisma/migrations)
+  # REQUIRES committed migrations, and `prisma/migrations` now holds them:
+  # 0_init plus the automation/wallet migration, verified to reproduce the
+  # schema on an empty database with zero drift. Keep it that way — `migrate
+  # deploy` against an incomplete directory exits 0 having applied nothing, and
+  # the app then starts on a half-built schema and fails in a way that reads
+  # like a code bug. After any schema change:
+  #   npx prisma migrate dev --name <what-changed>   (then commit the result)
   #
-  # Migrations run against DIRECT_DATABASE_URL when it is set, falling back to
-  # the pooled one. Managed providers hand out two strings: a transaction-mode
-  # pooler for the app and a direct session connection. Schema changes need the
-  # session connection — a pooler can hand consecutive statements to different
-  # backends, which is not something a migration survives.
-  release_command = "sh -c 'DATABASE_URL=${DIRECT_DATABASE_URL:-$DATABASE_URL} npx prisma migrate deploy'"
+  # No shell override any more: prisma.config.ts already prefers
+  # DIRECT_DATABASE_URL over the pooled DATABASE_URL, because a transaction-mode
+  # pooler can hand consecutive statements to different backends and a migration
+  # does not survive that. Set both secrets and this does the right thing.
+  release_command = "npx prisma migrate deploy"
 
 [env]
   NODE_ENV = "production"
-  # Must be bullmq once the API and the workers are separate machines: the
-  # memory driver is only correct inside a single process, and with it the API
-  # would accept jobs that no worker ever sees — silently.
-  QUEUE_DRIVER = "bullmq"
+  # The queue lives in Postgres, via the pgmq extension Supabase already ships.
+  # Redis bought durability and cross-process delivery; pgmq gives both on the
+  # database this app cannot run without anyway, so there is no second service
+  # to pay for, secure or keep alive.
+  QUEUE_DRIVER = "pgmq"
+  # One machine runs the HTTP server and the four lifecycle workers together.
+  # Safe here in a way it never was under the memory driver: the queue is
+  # external and durable, so producer and consumer do not have to share a heap
+  # to see each other. Splitting them back out is a change to this file — add
+  # the process group and set this to "false" — and to nothing else.
+  WORKERS_IN_PROCESS = "true"
+  # A message is invisible for this long after a worker picks it up, so it has
+  # to outlast the slowest handler; an agent job that runs past it is handed to
+  # a second worker while the first is still going.
+  QUEUE_VISIBILITY_TIMEOUT_SEC = "300"
   REPPO_PROVIDER = "http"
   LLM_PROVIDER = "mock"
   SETTLEMENT_DRIVER = "none"
   LOG_LEVEL = "info"
   API_PORT = "4000"
-  API_HOST = "0.0.0.0"
+  # `::`, not `0.0.0.0`. Fly's private network is IPv6-only, so `averis-api
+  # .internal` resolves to a 6PN address — and a listener bound to 0.0.0.0
+  # answers on IPv4 only and refuses it. The public proxy reaches the machine
+  # by another route, so that misconfiguration stays invisible until something
+  # tries the private hop: the web app did, and every server render came back
+  # "fetch failed". Node binds `::` dual-stack, so IPv4 keeps working too.
+  API_HOST = "::"
 
 # Secrets, set with `fly secrets set` and never in this file:
-#   DATABASE_URL      postgres connection string
-#   REDIS_URL         must be a real TCP Redis; BullMQ uses blocking commands,
-#                     so an HTTP/REST Redis endpoint will not work
-#   API_KEYS          empty disables authentication and only logs a warning
-#   CORS_ORIGINS      the web origin; the default is "*"
+#   DATABASE_URL          Supabase pooler (Supavisor), port 6543, pgbouncer=true
+#   DIRECT_DATABASE_URL   Supabase direct session, port 5432 — migrations only
+#                         Both need sslmode=require&uselibpqcompat=true and a
+#                         percent-encoded password: the pooler's certificate
+#                         comes from a private CA, and node-postgres reads a
+#                         bare sslmode=require as verify-full and rejects it.
+#   DATABASE_POOL_MAX     real connections per process; the pooler's budget is
+#                         shared by the api, the workers inside it and the
+#                         queue's own polling, so raise it before adding
+#                         machines rather than after
+#   API_KEYS              empty disables authentication and only logs a warning
+#   CORS_ORIGINS          the web origin; the default is "*"
+#   PRIVY_APP_ID / PRIVY_APP_SECRET   wallet login; both or neither
+#   EXECUTION_DRIVER / EXECUTION_PRICE_URL   automation; both default to refusing
 #   ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY, if agents use them
+#
+# Deliberately absent: REDIS_URL. It is required only by QUEUE_DRIVER=bullmq,
+# which stays in the codebase for deployments that already run Redis.
 
 [processes]
   api = "npm run start --workspace @averis/api"
-  worker = "npm run start --workspace @averis/workers"
 
-# Only the API is behind the proxy. The workers must NOT be attached here:
-# autostop is driven by incoming requests, and a queue consumer receives none,
-# so the proxy would stop the very process that does the work.
+# `auto_stop_machines` stays false and `min_machines_running` stays 1. That was
+# already true when the workers were their own machines, and it matters more
+# now: this process is the only consumer of the queue, and a stopped machine
+# consumes nothing. Autostop is driven by incoming HTTP requests, which say
+# nothing about how much work is waiting in Postgres.
 [http_service]
   internal_port = 4000
   force_https = true
@@ -79,14 +111,11 @@ primary_region = "sin"          # keep this in the same region as Postgres
     # /health returns 503 when the database or the queue is unreachable, so a
     # machine that boots without its dependencies is never sent traffic.
 
-# Prisma's client and the provider SDKs make 256mb tight; 512mb is the floor
-# that does not spend its life near the OOM killer.
+# 1gb, not the 512mb the API alone ran on: this machine now also holds four
+# workers, the agent runtime and the provider SDKs. Two 512mb machines became
+# one 1gb machine, which is both cheaper and further from the OOM killer than
+# either of them was.
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"
+  memory = "1gb"
   processes = ["api"]
-
-[[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
-  processes = ["worker"]

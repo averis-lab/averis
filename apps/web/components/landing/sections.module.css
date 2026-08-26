@@ -455,14 +455,23 @@
   padding: 58px 0 4px;
 }
 
+/* Left, on --stats-x, because every other line on the page starts there now —
+   a centred caption over two left-running rails read as a stray element. */
 .railCaption {
-  padding: 0 20px;
-  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 var(--stats-x, 72px) 22px;
   color: #6f6f74;
   font-size: 12px;
   line-height: 1.6;
   letter-spacing: -0.005em;
-  text-align: center;
+}
+.railCaption::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-soft, rgba(255, 255, 255, 0.12)), transparent);
 }
 
 .railRow {
@@ -594,10 +603,124 @@
   letter-spacing: -0.01em;
 }
 
+/* ─── Progression ────────────────────────────────────────────────────────── */
+/*
+ * Five phases on one rule, one of them lit.
+ *
+ * The page already has a four-cell hairline grid for the steps and a three-cell
+ * one for the principles; a third would read as the same device saying a third
+ * thing. This one is a track: each phase draws its own segment of the rule with
+ * a node where it starts, and the segment before the live phase is the only one
+ * in the accent. The eye gets "here, and then four more" without reading a word.
+ */
+.arc {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.arcStep {
+  position: relative;
+  padding: 26px 22px 4px 0;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.arcStep::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  background: #0a0a0b;
+}
+/* The phase that is actually running. Its node is filled and its own segment of
+   the rule carries the accent; everything after it stays hairline. */
+.arcNow {
+  border-top-color: rgba(229, 72, 77, 0.55);
+}
+.arcNow::before {
+  border-color: var(--red, #e5484d);
+  background: var(--red, #e5484d);
+  box-shadow: 0 0 10px var(--red-glow, rgba(229, 72, 77, 0.38));
+}
+
+.arcIndex {
+  display: block;
+  margin-bottom: 12px;
+  color: #55555b;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.arcNow .arcIndex {
+  color: var(--red, #e5484d);
+}
+
+.arcTitle {
+  margin-bottom: 9px;
+  color: #85858b;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
+  transition: color 0.35s ease;
+}
+.arcNow .arcTitle {
+  color: #fff;
+}
+.arcStep:hover .arcTitle {
+  color: #ededf0;
+}
+
+.arcBody {
+  color: #6f6f74;
+  font-size: 12.8px;
+  line-height: 1.62;
+  letter-spacing: -0.01em;
+}
+.arcNow .arcBody {
+  color: var(--muted, #9a9a9a);
+}
+
+.arcBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 4px 10px;
+  border: 1px solid rgba(229, 72, 77, 0.34);
+  border-radius: 999px;
+  background: rgba(229, 72, 77, 0.08);
+  color: #ff8a8e;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+.arcFoot {
+  margin-top: 26px;
+  color: #6f6f74;
+  font-size: 12.8px;
+  line-height: 1.62;
+  letter-spacing: -0.01em;
+}
+.arcLink {
+  color: #b9b9c0;
+  text-decoration: underline;
+  text-decoration-color: rgba(229, 72, 77, 0.55);
+  text-underline-offset: 3px;
+  transition: color 0.2s ease, text-decoration-color 0.2s ease;
+}
+.arcLink:hover {
+  color: #fff;
+  text-decoration-color: var(--red, #e5484d);
+}
+
 /* ─── Comparison matrix ──────────────────────────────────────────────────── */
+/* The rule belongs to the header row, not the wrapper: on the wrapper it drew
+   a second line above the owned column's own top border. */
 .matrixWrap {
   overflow-x: auto;
-  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
 }
 .matrix {
   width: 100%;
@@ -613,6 +736,7 @@
 }
 .matrix thead th {
   padding-top: 18px;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
   color: var(--muted, #9a9a9a);
   font-size: 11.5px;
   font-weight: 500;
@@ -633,12 +757,61 @@
   border-bottom: 0;
 }
 
-/* The owned column is tinted end to end so the eye reads it as one block. */
+/*
+ * The owned column is tinted end to end so the eye reads it as one block, and
+ * carries its own side rules so it reads as a column rather than eight tinted
+ * cells that happen to line up.
+ */
 .matrixOwn {
-  background: rgba(229, 72, 77, 0.05);
+  background: rgba(229, 72, 77, 0.055);
+  border-left: 1px solid rgba(229, 72, 77, 0.2);
+  border-right: 1px solid rgba(229, 72, 77, 0.2);
 }
 .matrix thead th.matrixOwn {
   color: var(--red, #e5484d);
+  border-top: 1px solid rgba(229, 72, 77, 0.2);
+}
+.matrix tbody tr:last-child .matrixOwn {
+  border-bottom: 1px solid rgba(229, 72, 77, 0.2);
+}
+
+/* Eight rows of small marks is a place to lose your line; the row lights up
+   under the pointer and the property it names comes forward with it. */
+.matrix tbody tr {
+  transition: background-color 0.25s ease;
+}
+.matrix tbody tr:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+.matrix tbody tr:hover th {
+  color: #fff;
+}
+
+/*
+ * What the three marks mean. "Partial" was carried only by a title attribute,
+ * which is invisible on touch and to anyone not hovering the exact glyph.
+ */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  margin-top: 20px;
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #76767c;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+.legend .mark {
+  width: 18px;
+  height: 18px;
+}
+.legend .mark svg {
+  width: 12px;
+  height: 12px;
 }
 
 .mark {
@@ -890,6 +1063,14 @@
   border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
 }
 
+/* Referenced by the footer but never defined, so the brand column had no rules
+   of its own and only held together because its children happen to be blocks. */
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .footerLogo {
   display: inline-flex;
   align-items: center;
@@ -899,10 +1080,6 @@
   font-weight: 600;
   letter-spacing: -0.03em;
 }
-.footerLogoSuffix {
-  font-weight: 400;
-}
-
 .footerLine {
   max-width: 46ch;
   margin-top: 16px;
@@ -932,6 +1109,35 @@
   box-shadow: 0 0 8px rgba(229, 72, 77, 0.5);
 }
 
+/* ─── Social ─────────────────────────────────────────────────────────────── */
+/*
+ * A mark in the last corner of the page, at the weight of the legal line it
+ * sits on. The negative margin lets the tap target be 28px without the icon
+ * pushing the bottom row taller than the type in it; align-self overrides the
+ * row's baseline, which an icon with no text box has no useful one for.
+ */
+.social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  margin: -7px 0 -7px 2px;
+  padding: 7px;
+  border-radius: 6px;
+  color: #5c5c62;
+  transition: color 0.22s ease, background-color 0.22s ease;
+}
+.social svg {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  display: block;
+}
+.social:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .footerNav {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -958,11 +1164,28 @@
   color: #fff;
 }
 
+/*
+ * The page closed on a thin row of legal text, which made the whole document
+ * trail off. The wordmark gives it a bottom edge — set as a watermark rather
+ * than a statement, and hidden from assistive technology because the footer
+ * already carries the name in its logo link above.
+ */
+.footerMark {
+  margin: 4px 0 -2px;
+  color: rgba(255, 255, 255, 0.055);
+  font-size: clamp(52px, 15.5vw, 240px);
+  font-weight: 600;
+  line-height: 0.85;
+  letter-spacing: -0.055em;
+  white-space: nowrap;
+  user-select: none;
+}
 .footerBottom {
   display: flex;
   flex-wrap: wrap;
+  align-items: baseline;
   gap: 8px 22px;
-  padding-top: 22px;
+  padding-top: 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.07);
   color: #5c5c62;
   font-size: 11.5px;
@@ -973,6 +1196,17 @@
 }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1280px) {
+  /* Five text columns are ~200px each below this; the track folds to two rows
+     and the second row starts a fresh left edge. */
+  .arc {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .arcStep:nth-child(n + 4) {
+    margin-top: 26px;
+  }
+}
+
 @media (max-width: 1100px) {
   .devGrid {
     grid-template-columns: minmax(0, 1fr);
@@ -1009,6 +1243,30 @@
   }
   .domains {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* A vertical track: the rule moves to the left edge and the nodes run down
+     it, which is the same reading as the horizontal one turned on its side. */
+  .arc {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .arcStep {
+    padding: 0 0 24px 22px;
+    border-top: 0;
+    border-left: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  }
+  .arcStep:last-child {
+    border-left-color: transparent;
+    padding-bottom: 0;
+  }
+  .arcStep:nth-child(n + 4) {
+    margin-top: 0;
+  }
+  .arcStep::before {
+    top: 0;
+    left: -4px;
+  }
+  .arcNow {
+    border-left-color: rgba(229, 72, 77, 0.55);
   }
   .footer {
     padding-left: max(20px, env(safe-area-inset-left));
@@ -1062,7 +1320,10 @@
   .domain,
   .chip,
   .tab,
+  .arcTitle,
+  .arcLink,
   .faqSign i,
+  .social,
   .footerColumn a {
     transition: none;
   }

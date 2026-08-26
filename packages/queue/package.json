@@ -3,7 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Queue driver abstraction: BullMQ in production, in-process for dev and CI.",
-  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
-  "dependencies": { "bullmq": "^6.1.2", "ioredis": "^6.0.0" }
+  "description": "Queue driver abstraction: pgmq on Postgres in production, BullMQ for Redis deployments, in-process for dev and CI.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@averis/db": "*",
+    "bullmq": "^6.1.2",
+    "ioredis": "^6.0.0"
+  }
 }

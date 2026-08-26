@@ -115,62 +115,81 @@ export function LandingShell({
         <div className={styles.page}>
           <>
           <main className={styles.hero} id="top">
+            {/*
+              Two columns: the headline holds the left, the paragraph and the
+              buttons sit beside it behind a hairline. The stylesheet collapses
+              them back into one column below 1100px.
+            */}
             <div className={styles.heroCopy}>
-              <span
-                className={`${styles.badge} ${styles.appear} ${styles.appearPop}`}
-                style={delay("0.22s")}
-              >
-                <svg
-                  className={styles.badgeStar}
-                  width="18"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="#ffffff"
-                  aria-hidden="true"
-                >
-                  <path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z" />
-                </svg>
-                Accountability layer
-              </span>
-
-              <h1 className={styles.headline}>
+              <div className={styles.heroLead}>
                 <span
-                  className={`${styles.headlineLine} ${styles.appear} ${styles.appearMask}`}
-                  style={delay("0.42s")}
+                  className={`${styles.badge} ${styles.appear} ${styles.appearPop}`}
+                  style={delay("0.22s")}
                 >
-                  Coordinate <em>AI agents</em> into
+                  <svg
+                    className={styles.badgeStar}
+                    width="18"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="#ffffff"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z" />
+                  </svg>
+                  Accountability layer
                 </span>
-                <span
-                  className={`${styles.headlineLine} ${styles.appear} ${styles.appearMask}`}
-                  style={delay("0.62s")}
-                >
-                  intelligence you can verify.
-                </span>
-              </h1>
 
-              <p
-                className={`${styles.lede} ${styles.appear} ${styles.appearSoft}`}
-                style={delay("0.82s")}
-              >
-                Specialist agents analyse the same curated Reppo Datanet independently. Their claims
-                are scored, weighted and merged, each one traceable to the evidence behind it.
-              </p>
+                <h1 className={styles.headline}>
+                  <span
+                    className={`${styles.headlineLine} ${styles.appear} ${styles.appearMask}`}
+                    style={delay("0.42s")}
+                  >
+                    Coordinate <em>AI agents</em> into
+                  </span>
+                  <span
+                    className={`${styles.headlineLine} ${styles.appear} ${styles.appearMask}`}
+                    style={delay("0.62s")}
+                  >
+                    intelligence you can verify.
+                  </span>
+                </h1>
+              </div>
 
-              <div className={styles.heroActions}>
-                <a
-                  className={`${styles.btn} ${styles.btnSolid} ${styles.appear} ${styles.appearBtn}`}
-                  href="/dashboard"
-                  style={delay("0.96s")}
+              <div className={styles.heroSupport}>
+                <p
+                  className={`${styles.lede} ${styles.appear} ${styles.appearSoft}`}
+                  style={delay("0.82s")}
                 >
-                  Create an intelligence job
-                </a>
-                <a
-                  className={`${styles.btn} ${styles.btnGhost} ${styles.appear} ${styles.appearSide}`}
-                  href="/datanets"
-                  style={delay("1.10s")}
-                >
-                  Browse Datanets
-                </a>
+                  Specialist agents analyse the same curated Datanet independently. Their claims
+                  are scored, weighted and merged, each one traceable to the evidence behind it.
+                </p>
+
+                <div className={styles.heroActions}>
+                  <a
+                    className={`${styles.btn} ${styles.btnSolid} ${styles.appear} ${styles.appearBtn}`}
+                    href="/dashboard"
+                    style={delay("0.96s")}
+                  >
+                    Create an intelligence job
+                    <svg className={styles.btnArrow} viewBox="0 0 16 16" aria-hidden="true">
+                      <path
+                        d="M3.4 8h9M8.6 4.2 12.4 8l-3.8 3.8"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </a>
+                  <a
+                    className={`${styles.btn} ${styles.btnGhost} ${styles.appear} ${styles.appearSide}`}
+                    href="/datanets"
+                    style={delay("1.10s")}
+                  >
+                    Browse Datanets
+                  </a>
+                </div>
               </div>
             </div>
           </main>
@@ -195,7 +214,7 @@ export function LandingShell({
                 <rect x="13.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#averis-pill-b)" />
                 <rect x="9.2" y="10.9" width="5.6" height="2.2" rx="1.1" fill="#4a4a4a" />
               </svg>
-              Curated Reppo Datanets, read live
+              Curated Datanets, read live
             </span>
 
             <span

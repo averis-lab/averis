@@ -9,7 +9,9 @@ import { hashApiKey } from "./api-key";
 import { registerJobRoutes } from "./routes/jobs";
 import { registerAgentRoutes } from "./routes/agents";
 import { registerDatanetRoutes } from "./routes/datanets";
+import { registerAutomationRoutes } from "./routes/automations";
 import { isPaidRoute, registerPayments, resolvePaymentConfig } from "./payments";
+import { createWalletVerifier, resolvePrivyConfig } from "./privy";
 
 export interface ServerOptions {
   ctx: ProtocolContext;
@@ -54,8 +56,14 @@ export async function buildServer({ ctx }: ServerOptions): Promise<FastifyInstan
   // throws here, at startup, rather than at the first request for money.
   const payments = resolvePaymentConfig(ctx.env, keys);
 
+  // Half-configured Privy throws here, at startup, rather than presenting a
+  // login button whose tokens the gateway will reject one by one.
+  const privy = resolvePrivyConfig(ctx.env);
+  if (privy) app.log.info({ appId: privy.appId }, "wallet login enabled");
+
   registerAuth(app, keys, {
     ...(payments ? { allowAnonymous: (request) => isPaidRoute(request.method, request.url) } : {}),
+    ...(privy ? { verifyWallet: createWalletVerifier(privy) } : {}),
   });
 
   if (payments) await registerPayments(app, payments);
@@ -85,6 +93,10 @@ export async function buildServer({ ctx }: ServerOptions): Promise<FastifyInstan
       "GET  /v1/jobs/:id/explain",
       "GET  /v1/agents",
       "POST /v1/agents",
+      "GET  /v1/automations",
+      "POST /v1/automations",
+      "POST /v1/automations/:id/evaluate",
+      "GET  /v1/automations/:id/positions",
     ],
   }));
 
@@ -122,6 +134,7 @@ export async function buildServer({ ctx }: ServerOptions): Promise<FastifyInstan
   registerDatanetRoutes(app, ctx);
   registerJobRoutes(app, ctx);
   registerAgentRoutes(app, ctx);
+  registerAutomationRoutes(app, ctx, { walletRequired: privy !== null });
 
   return app;
 }

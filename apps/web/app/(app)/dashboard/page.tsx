@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { api, attempt, fetchJson } from "@/lib/api";
 import { pct, timeAgo } from "@/lib/format";
-import { ApiDown, Card, Empty, Stat, StatusBadge } from "@/components/ui";
+import { ApiDown, Card, Empty, SectionHead, StatStrip, StatusBadge } from "@/components/ui";
 import { CreateJobForm } from "@/components/create-job-form";
 
 export const dynamic = "force-dynamic";
@@ -30,74 +30,98 @@ export default async function Home() {
       <Header />
 
       {stats.ok ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Jobs" value={String(stats.value.data.jobs)} />
-          <Stat
-            label="Resolved"
-            value={String(stats.value.data.resolved)}
-            sub="reached consensus"
-          />
-          <Stat label="Active agents" value={String(stats.value.data.activeAgents)} />
-          <Stat
-            label="Evidence"
-            value={String(stats.value.data.evidenceItems)}
-            sub="provenance records"
-          />
-        </div>
+        <StatStrip
+          items={[
+            { label: "Jobs", value: String(stats.value.data.jobs), sub: "created" },
+            {
+              label: "Resolved",
+              value: String(stats.value.data.resolved),
+              sub: "reached consensus",
+            },
+            {
+              label: "Active agents",
+              value: String(stats.value.data.activeAgents),
+              sub: "available to a cohort",
+            },
+            {
+              label: "Evidence",
+              value: String(stats.value.data.evidenceItems),
+              sub: "provenance records",
+            },
+          ]}
+        />
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <section>
-          <h2 className="mb-3 text-sm font-semibold">New intelligence job</h2>
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-8">
+        {/* Sticky: the list beside it runs past a screen, and the form is the
+            thing you come back to after reading one. */}
+        <section className="lg:sticky lg:top-10">
+          <SectionHead>New intelligence job</SectionHead>
           <Card className="p-5">
             <CreateJobForm />
           </Card>
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold">Recent jobs</h2>
+          <SectionHead aside={jobs.value.length > 0 ? `${jobs.value.length} shown` : undefined}>
+            Recent jobs
+          </SectionHead>
+
           {jobs.value.length === 0 ? (
             <Empty
               title="No jobs yet"
-              hint="Create one on the left, or run `npm run demo` for a scripted end-to-end run."
+              hint="Start one with the form, or run `npm run demo` for a scripted end-to-end run."
             />
           ) : (
-            <div className="space-y-2">
+            /* One panel with ruled rows rather than a stack of bordered cards:
+               twelve cards draw twelve outlines around twelve one-line facts. */
+            <Card className="divide-y divide-line overflow-hidden">
               {jobs.value.map((job) => (
-                <Link key={job.id} href={`/jobs/${job.id}`} className="block">
-                  <Card className="p-4 transition-colors hover:border-accent/50">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="line-clamp-2 flex-1 text-sm leading-snug">{job.query}</p>
-                      <StatusBadge status={job.status} />
-                    </div>
-                    <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted">
-                      <span>{job.type}</span>
-                      <span>·</span>
-                      <span>{job.agentCount ?? job.requiredAgents} agents</span>
-                      {job.evidenceCount ? (
-                        <>
-                          <span>·</span>
-                          <span>{job.evidenceCount} evidence</span>
-                        </>
-                      ) : null}
-                      {typeof job.confidence === "number" ? (
-                        <>
-                          <span>·</span>
-                          <span className="text-emerald-500">
-                            {pct(job.confidence)} confidence
-                          </span>
-                        </>
-                      ) : null}
-                      <span className="ml-auto">{timeAgo(job.createdAt)}</span>
-                    </div>
-                  </Card>
+                <Link
+                  key={job.id}
+                  href={`/jobs/${job.id}`}
+                  className="block px-4 py-3.5 transition-colors hover:bg-line/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="line-clamp-2 flex-1 text-sm leading-snug">{job.query}</p>
+                    <StatusBadge status={job.status} />
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-[11px] text-muted">
+                    <span>{job.type}</span>
+                    <Dot />
+                    <span>{job.agentCount ?? job.requiredAgents} agents</span>
+                    {job.evidenceCount ? (
+                      <>
+                        <Dot />
+                        <span>{job.evidenceCount} evidence</span>
+                      </>
+                    ) : null}
+                    {typeof job.confidence === "number" ? (
+                      <>
+                        <Dot />
+                        <span className="text-emerald-500">{pct(job.confidence)} confidence</span>
+                      </>
+                    ) : null}
+                    {/* Pushed right on one line, but it wraps with the rest
+                        rather than being stranded alone on a narrow column. */}
+                    <span className="ml-auto whitespace-nowrap">{timeAgo(job.createdAt)}</span>
+                  </div>
                 </Link>
               ))}
-            </div>
+            </Card>
           )}
         </section>
       </div>
     </div>
+  );
+}
+
+function Dot() {
+  return (
+    <span aria-hidden className="text-muted/40">
+      ·
+    </span>
   );
 }
 

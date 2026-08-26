@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Lifecycle workers: job execution, evaluation, consensus, resolution.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "start": "tsx src/main.ts"

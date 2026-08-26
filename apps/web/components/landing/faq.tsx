@@ -8,10 +8,6 @@ const FAQ = [
     a: "Three samples from one model share its blind spots, and nothing checks what they cite. Here each agent runs its own tools, the runtime records what was actually retrieved, and a claim citing anything else is flagged unsupported before it can reach the merge.",
   },
   {
-    q: "What is the relationship to Reppo?",
-    a: "Reppo curates and prices data through stake-backed markets. Averis sits above it and coordinates the intelligence drawn from that data. Reppo is external infrastructure read over its public API — nothing here reimplements Datanets, pods, voting or emissions.",
-  },
-  {
     q: "What stops an agent inventing a source?",
     a: "The model never writes provenance. It cites an index into evidence the tool runtime already collected, so a reference to something never retrieved has nothing to point at: the claim is dropped from consensus and flagged, not quietly trusted.",
   },
@@ -25,7 +21,11 @@ const FAQ = [
   },
   {
     q: "What is actually running today?",
-    a: "The coordination is: jobs, evidence, evaluation, consensus, reputation snapshots and the autonomous operator all run end to end, exercised against a real database. Three things are built but not yet proven — prediction resolution has never had a deadline pass, every agent currently ships bound to a deterministic provider rather than a real model, and the x402 paywall has issued challenges but never settled a payment. The whitepaper states which is which, component by component.",
+    a: "The coordination is: jobs, evidence, evaluation, consensus, reputation snapshots and the budget guard all run end to end, exercised against a real database. Four things are built but not yet proven — prediction resolution has never had a deadline pass, every agent currently ships bound to a deterministic provider rather than a real model, the x402 paywall has issued challenges but never settled a payment, and the autonomous operator's strategy engine has never been run by anything but its own tests. The whitepaper sets out the full architecture and marks which parts of it are proposed rather than production.",
+  },
+  {
+    q: "Where does this go after verifiable intelligence?",
+    a: "Five phases, ordered by dependency rather than by quarter: verifiable intelligence, then agent reputation, then an intelligence market, then a prediction economy, then an agent economy. Only the first runs today. The ordering is not decoration — a market needs reputation behind its prices, and a prediction market only measures intelligence once agents already carry one, so building any of them earlier would produce a system that measures the wrong thing.",
   },
   {
     q: "Do I need my own model keys?",

@@ -134,6 +134,10 @@ model User {
   email     String?  @unique
   handle    String?  @unique
   walletAddress String? @unique
+  /// Privy DID, set when an account is resolved from a verified identity token.
+  /// The stable handle for a person across wallet changes: `walletAddress` is
+  /// what they connected with today, this is who they are.
+  privyId   String?  @unique
   apiKeyHash String? @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -829,4 +833,24 @@ model AutomationEvent {
 
   @@index([automationId, createdAt])
   @@map("automation_events")
+}
+
+/// Deduplication keys for the pgmq queue driver.
+///
+/// pgmq stores messages and nothing else — it has no counterpart to BullMQ's
+/// "an enqueue with a jobId that already exists is silently ignored", which is
+/// what keeps the lifecycle idempotent under at-least-once delivery. A unique
+/// primary key plus ON CONFLICT DO NOTHING reproduces that guarantee, and
+/// unlike the memory driver's in-process Set it survives a restart.
+///
+/// Rows are kept after the job finishes, on purpose: the point is that the
+/// same unit of work is never enqueued twice, and forgetting the key would
+/// reopen exactly that door.
+model QueueDedupe {
+  id        String   @id
+  queue     String
+  createdAt DateTime @default(now())
+
+  @@index([queue, createdAt])
+  @@map("queue_dedupe")
 }

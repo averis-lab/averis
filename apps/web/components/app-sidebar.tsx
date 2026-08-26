@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AverisMark } from "@/components/averis-mark";
+import { WalletButton } from "@/components/wallet";
+import { AUTOMATION_ENABLED } from "@/lib/features";
 
 /**
  * Chrome for the product surface.
@@ -29,6 +31,12 @@ interface NavItem {
    * the nav with nothing selected on the page people spend the most time on.
    */
   also?: string[];
+  /**
+   * A section that exists but is not reachable yet. It stays in the navigation
+   * — removing it entirely would hide that the work is under way — but renders
+   * as an inert row carrying its phase, not as a link to a 404.
+   */
+  soon?: boolean;
 }
 
 const GROUPS: Array<{ label: string; items: NavItem[] }> = [
@@ -38,6 +46,12 @@ const GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: "/dashboard", label: "Jobs", icon: JobsIcon, also: ["/jobs"] },
       { href: "/agents", label: "Agents", icon: AgentsIcon },
       { href: "/datanets", label: "Datanets", icon: DatanetsIcon },
+    ],
+  },
+  {
+    label: "Automation",
+    items: [
+      { href: "/automation", label: "Agents", icon: AutomationIcon, soon: !AUTOMATION_ENABLED },
     ],
   },
   {
@@ -131,6 +145,29 @@ export function AppSidebar() {
                 {group.items.map((item) => {
                   const active = isActive(pathname, item);
                   const Icon = item.icon;
+
+                  /*
+                   * Gated: a row, not a link. `aria-disabled` on an anchor
+                   * still leaves it focusable and followable, so there is no
+                   * anchor at all — the pill is what says why.
+                   */
+                  if (item.soon) {
+                    return (
+                      <li key={item.href}>
+                        <div
+                          className="flex cursor-not-allowed items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-muted/50"
+                          title="Coming soon — roadmap phase 5"
+                        >
+                          <Icon className="text-muted/50" />
+                          {item.label}
+                          <span className="ml-auto rounded border border-line px-1.5 py-0.5 font-mono text-[9px] tracking-wide text-muted/70 uppercase">
+                            Soon
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  }
+
                   return (
                     <li key={item.href}>
                       <Link
@@ -163,7 +200,8 @@ export function AppSidebar() {
           ))}
         </nav>
 
-        <div className="shrink-0 border-t border-line px-3 py-3">
+        <div className="shrink-0 space-y-2 border-t border-line px-3 py-3">
+          <WalletButton />
           <ul className="space-y-0.5">
             {DOCS.map((doc) => (
               <li key={doc.href}>
@@ -242,6 +280,17 @@ function DatanetsIcon({ className }: { className?: string }) {
       <ellipse cx="8" cy="4" rx="5" ry="2" />
       <path d="M3 4v8c0 1.1 2.24 2 5 2s5-.9 5-2V4" />
       <path d="M3 8c0 1.1 2.24 2 5 2s5-.9 5-2" />
+    </Glyph>
+  );
+}
+
+/** A rule line with a position above and below it — a gate, not a rocket. */
+function AutomationIcon({ className }: { className?: string }) {
+  return (
+    <Glyph className={className}>
+      <path d="M2.5 8h11" />
+      <circle cx="5.5" cy="4.5" r="1.5" />
+      <circle cx="10.5" cy="11.5" r="1.5" />
     </Glyph>
   );
 }

@@ -248,13 +248,216 @@
   color: #6f6f74;
 }
 
+/* ─── The narrative ──────────────────────────────────────────────────────── */
+/*
+ * Five sentences, one per phase. They sit above the phases themselves because
+ * the shape of the plan is the argument: each phase builds the primitive the
+ * next one needs, and a reader should be able to see that before reading any
+ * deliverable at all.
+ */
+.narrative {
+  display: grid;
+  margin: 30px 0 0;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+.narrativeItem {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+.narrativeIndex {
+  color: #55555b;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.narrativeText {
+  color: #b4b4ba;
+  font-size: 14.6px;
+  line-height: 1.6;
+  letter-spacing: -0.014em;
+}
+.narrativeText strong {
+  color: #fff;
+  font-weight: 500;
+}
+
+/* ─── Dependency stack ───────────────────────────────────────────────────── */
+/*
+ * Why the order is the order. Drawn as a rail with a node per tier rather than
+ * as boxes and arrows: the point is that this is one column of dependencies,
+ * and a stack of boxes invites the reader to think the tiers are alternatives.
+ */
+.stack {
+  margin: 26px 0 0;
+  padding: 26px 24px 8px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.018);
+}
+.stackTier {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 6px 20px;
+  padding: 0 0 22px 26px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+/* The last tier has nothing below it, so its rail would hang past the final
+   node with no destination. */
+.stackTier:last-child {
+  border-left-color: transparent;
+  padding-bottom: 18px;
+}
+.stackTier::before {
+  content: "";
+  position: absolute;
+  top: 0.42em;
+  left: -3.5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4a4a50;
+}
+.stackName {
+  color: #d2d2d6;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.stackNote {
+  color: #7d7d84;
+  font-size: 13px;
+  line-height: 1.55;
+  letter-spacing: -0.01em;
+}
+/* Where the protocol stands today, and what everything above it is for. */
+.stackHere::before {
+  background: var(--red, #e5484d);
+  box-shadow: 0 0 10px var(--red-glow-soft, rgba(229, 72, 77, 0.22));
+}
+.stackHere .stackName {
+  color: #fff;
+}
+
+/* ─── Horizon bands ──────────────────────────────────────────────────────── */
+/* Now / Next / Later. The phases are dependency-ordered, not dated, so these
+   say how far out a phase is without inventing a quarter for it. */
+.horizon {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-top: 46px;
+}
+.horizon::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border-soft, rgba(255, 255, 255, 0.12)), transparent);
+}
+.horizonLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #85858b;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.horizonLabel::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.horizonNow {
+  color: var(--red, #e5484d);
+}
+.horizonNote {
+  color: #6f6f74;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+}
+
+/* ─── Phase flow ─────────────────────────────────────────────────────────── */
+/* The same device the whitepaper uses for its progressions: horizontal, so a
+   six-step flow costs one line rather than six. */
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px 5px;
+  margin-top: 20px;
+}
+.flowStep {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.022);
+  color: #c6c6cb;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.4px;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+}
+.flowEnd {
+  border-color: rgba(229, 72, 77, 0.34);
+  background: rgba(229, 72, 77, 0.07);
+  color: #ff8a8e;
+}
+.flowArrow {
+  padding: 0 2px;
+  color: #4a4a50;
+  font-size: 12px;
+  line-height: 1;
+}
+
+/* ─── Phase goal ─────────────────────────────────────────────────────────── */
+/* What the phase is for, as opposed to what it contains. */
+.goal {
+  margin-top: 20px;
+  padding: 15px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.goalLabel {
+  display: block;
+  margin-bottom: 7px;
+  color: #6f6f74;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.goalText {
+  color: #d4d4d9;
+  font-size: 14px;
+  line-height: 1.62;
+  letter-spacing: -0.015em;
+}
+.goalText strong {
+  color: #fff;
+  font-weight: 500;
+}
+
 /* ─── Closing ────────────────────────────────────────────────────────────── */
 .closing {
   margin-top: 48px;
   padding: 24px;
-  border: 1px solid rgba(229, 72, 77, 0.24);
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-left: 2px solid var(--red, #e5484d);
   border-radius: 12px;
-  background: rgba(229, 72, 77, 0.045);
+  background: rgba(255, 255, 255, 0.02);
 }
 .closingTitle {
   margin-bottom: 12px;
@@ -325,6 +528,13 @@
   .phaseIndex,
   .phaseWhen {
     margin-bottom: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .stackTier {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
   }
 }
 

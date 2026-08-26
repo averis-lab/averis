@@ -3,10 +3,14 @@ import s from "./sections.module.css";
 /**
  * A moving rail of the protocol's real vocabulary.
  *
- * The domains are the capability tags the seeded cohort declares and the tools
- * are the ones the agent runtime actually exposes — a marquee of invented
- * partner logos would say nothing, while this says what a job can ask for and
- * what an agent can reach for.
+ * The domains are the capability tags the seeded cohort declares, and the rest
+ * of the row is the shared runtime and the cohort itself — a marquee of
+ * invented partner logos would say nothing, while this says what a job can ask
+ * for and who answers it.
+ *
+ * The runtime's data-access tools are not listed. They are named after the
+ * upstream provider in the runtime itself, and renaming them here would put
+ * identifiers on the page that the API does not answer to.
  */
 const DOMAINS = [
   "markets",
@@ -22,9 +26,6 @@ const DOMAINS = [
 ];
 
 const RUNTIME = [
-  "reppo_list_datanets",
-  "reppo_search_data",
-  "reppo_get_datanet_data",
   "compute_evidence_stats",
   "http_get",
   "Onchain Analyst",

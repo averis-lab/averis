@@ -1,24 +1,19 @@
 import "@averis/db/env";
 import { createContext, consoleLogger } from "@averis/protocol";
 import { disconnect } from "@averis/db";
-import { startJobWorker } from "./job-worker/index";
-import { startEvaluationWorker } from "./evaluation-worker/index";
-import { startConsensusWorker } from "./consensus-worker/index";
-import { startResolutionWorker } from "./resolution-worker/index";
+import { startWorkers } from "./index";
 
 /**
- * Runs all four lifecycle workers in one process.
+ * Runs all four lifecycle workers in a process of their own.
  *
- * They are separate modules with separate queues, so splitting them into
- * separate deployments later is a change to this file only.
+ * This is the split deployment: the API accepts work and these machines do it,
+ * which requires a queue both sides can see — `QUEUE_DRIVER=pgmq` or `bullmq`,
+ * never `memory`. For a single-machine deployment the API hosts the workers
+ * itself and this entrypoint is simply not run.
  */
 async function main(): Promise<void> {
   const ctx = createContext({ logger: consoleLogger });
-
-  const job = startJobWorker(ctx);
-  const evaluation = startEvaluationWorker(ctx);
-  const consensus = startConsensusWorker(ctx);
-  const resolution = startResolutionWorker(ctx);
+  const workers = startWorkers(ctx);
 
   ctx.logger.info("workers started", {
     queue: ctx.queue.name,
@@ -28,13 +23,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string): Promise<void> => {
     ctx.logger.info("shutting down workers", { signal });
-    resolution.stop();
-    await Promise.allSettled([
-      job.close(),
-      evaluation.close(),
-      consensus.close(),
-      resolution.subscription.close(),
-    ]);
+    await workers.stop();
     await ctx.queue.close();
     await disconnect();
     process.exit(0);

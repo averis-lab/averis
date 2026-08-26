@@ -96,6 +96,18 @@ export function Comparison() {
           </tbody>
         </table>
       </Reveal>
+
+      <Reveal as="ul" className={s.legend} delay={0.1}>
+        <li>
+          <Mark value={true} /> Enforced by the protocol
+        </li>
+        <li>
+          <Mark value="partial" /> Possible, but nothing enforces it
+        </li>
+        <li>
+          <Mark value={false} /> Not available
+        </li>
+      </Reveal>
     </section>
   );
 }

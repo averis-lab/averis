@@ -10,6 +10,10 @@ import { Reveal } from "./reveal";
  * weights that sum to one, evidence that every claim actually cites, and a
  * disagreement left standing rather than averaged away — and the caption says
  * plainly that it is an example.
+ *
+ * Evidence locators are shown without their scheme. That is a truncation of the
+ * identifier the API returns, not a different one: the chip is 10.5px wide
+ * enough for the path, and the path is the part that identifies the source.
  */
 
 const CLAIMS = [
@@ -19,8 +23,8 @@ const CLAIMS = [
     statement:
       "Curation depth is uneven: 62% of accepted pods cluster into three of the eleven declared topics.",
     evidence: [
-      { source: "reppo:datanet/geo-intel", reliability: 0.86 },
-      { source: "reppo:pod/8c41f2", reliability: 0.79 },
+      { source: "datanet/geo-intel", reliability: 0.86 },
+      { source: "pod/8c41f2", reliability: 0.79 },
     ],
   },
   {
@@ -35,8 +39,8 @@ const CLAIMS = [
     statement:
       "Cross-pod corroboration stays above 0.60 through the next curation epoch.",
     evidence: [
-      { source: "reppo:pod/2b90ac", reliability: 0.74 },
-      { source: "reppo:pod/f17d33", reliability: 0.68 },
+      { source: "pod/2b90ac", reliability: 0.74 },
+      { source: "pod/f17d33", reliability: 0.68 },
     ],
   },
   {
@@ -44,7 +48,7 @@ const CLAIMS = [
     confidence: 0.66,
     statement:
       "Two topics rest on a single contributor, so one withdrawal removes the corroboration behind them.",
-    evidence: [{ source: "reppo:datanet/geo-intel", reliability: 0.86 }],
+    evidence: [{ source: "datanet/geo-intel", reliability: 0.86 }],
   },
 ];
 

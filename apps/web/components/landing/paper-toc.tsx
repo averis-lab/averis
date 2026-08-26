@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 interface Entry {
   id: string;
   title: string;
+  /** Groups consecutive entries under one heading in the rail. */
+  part?: string;
 }
 
 interface PaperTocProps {
@@ -14,6 +16,8 @@ interface PaperTocProps {
   indexClassName: string;
   activeClassName: string;
   progressClassName: string;
+  /** Required once any entry carries a part. */
+  partClassName?: string;
 }
 
 /**
@@ -25,6 +29,10 @@ interface PaperTocProps {
  * rather than "whatever is most visible" — with sections of wildly different
  * lengths, the most-visible rule flickers between neighbours at every boundary.
  *
+ * Entries may declare a `part`. A long paper's rail is unreadable as a flat
+ * run of thirty-odd lines, so a part label is drawn above the first entry that
+ * opens one — inside that entry's own list item, which keeps the list a list.
+ *
  * Everything degrades to a plain anchor list: without JavaScript the rail is
  * still a working table of contents, just without the highlight.
  */
@@ -35,6 +43,7 @@ export function PaperToc({
   indexClassName,
   activeClassName,
   progressClassName,
+  partClassName,
 }: PaperTocProps) {
   const [active, setActive] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
@@ -99,8 +108,10 @@ export function PaperToc({
       <ol>
         {entries.map((entry, i) => {
           const isActive = active === entry.id;
+          const opensPart = entry.part && entry.part !== entries[i - 1]?.part;
           return (
             <li key={entry.id}>
+              {opensPart ? <span className={partClassName}>{entry.part}</span> : null}
               <a
                 href={`#${entry.id}`}
                 className={isActive ? activeClassName : undefined}

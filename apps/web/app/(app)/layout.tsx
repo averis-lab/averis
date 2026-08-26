@@ -1,4 +1,5 @@
 import { AppSidebar } from "@/components/app-sidebar";
+import { WalletProvider } from "@/components/wallet";
 
 /**
  * Shell for the product surface.
@@ -11,9 +12,17 @@ import { AppSidebar } from "@/components/app-sidebar";
  * page, and a job report is long enough that the nav would be gone for most
  * of the read. On small screens the offset drops and the sidebar becomes a
  * drawer, so the mobile bar it renders is a normal child of this column.
+ *
+ * The Privy app id is read here at request time and passed down rather than
+ * inlined as `NEXT_PUBLIC_*`, which is baked in at build: one image deployed to
+ * two environments would otherwise keep pointing at whichever app the build
+ * machine was configured for.
  */
 export default function AppLayout({ children }: LayoutProps<"/">) {
+  const privyAppId = process.env["PRIVY_APP_ID"]?.trim() || null;
+
   return (
+    <WalletProvider appId={privyAppId}>
     <div className="flex min-h-dvh flex-col lg:pl-60">
       <AppSidebar />
 
@@ -23,11 +32,11 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 
       <footer className="border-t border-line">
         <div className="mx-auto max-w-6xl px-5 py-5 text-[11px] leading-relaxed text-muted lg:px-8">
-          Reads curated Datanets from Reppo over its public API and coordinates independent agents
-          into evidence-linked intelligence. Reppo is external infrastructure, not part of this
-          protocol.
+          Reads curated Datanets and coordinates independent agents into evidence-linked
+          intelligence — every claim traceable to what the runtime actually retrieved.
         </div>
       </footer>
     </div>
+    </WalletProvider>
   );
 }

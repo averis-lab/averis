@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { constantTimeEqual, hashApiKey, isWellFormedKey } from "./api-key";
+import { isJwtShaped, type VerifiedWallet, type WalletVerifier } from "./privy";
 
 /**
  * Who is making this request.
@@ -15,6 +16,8 @@ export interface Principal {
   userId: string | null;
   label: string;
   scope: "root" | "user";
+  /** Present when the principal was resolved from a verified wallet. */
+  walletAddress?: string | null;
 }
 
 declare module "fastify" {
@@ -42,9 +45,55 @@ const prismaLookup: KeyLookup = async (keyHash) => {
   });
 };
 
+/**
+ * Resolves a verified wallet to an account, creating one on first sight.
+ *
+ * Separate from the verifier so the cryptography stays testable without a
+ * database, and the database work stays testable without Privy.
+ */
+export type WalletLookup = (
+  verified: VerifiedWallet,
+) => Promise<{ id: string; handle: string | null; walletAddress: string | null }>;
+
+/**
+ * Attaches a verified wallet to an account.
+ *
+ * Three cases, in order. A returning person is found by their Privy DID. A
+ * wallet already on an account with no DID is *claimed* — proving control of
+ * that address is exactly the authentication that account was waiting for.
+ * Otherwise the account is new.
+ *
+ * The DID rather than the address is the primary key of a person here: someone
+ * who links a second wallet is still the same operator, and their automations
+ * should not vanish because they connected a different address.
+ */
+const prismaWalletLookup: WalletLookup = async ({ privyId, walletAddress }) => {
+  const { prisma } = await import("@averis/db");
+
+  const existing = await prisma.user.findUnique({ where: { privyId } });
+  if (existing) {
+    if (existing.walletAddress === walletAddress) return existing;
+    // The address moved. Only take it if no other account holds it.
+    const holder = await prisma.user.findUnique({ where: { walletAddress } });
+    if (holder && holder.id !== existing.id) return existing;
+    return prisma.user.update({ where: { id: existing.id }, data: { walletAddress } });
+  }
+
+  const byWallet = await prisma.user.findUnique({ where: { walletAddress } });
+  if (byWallet && !byWallet.privyId) {
+    return prisma.user.update({ where: { id: byWallet.id }, data: { privyId } });
+  }
+  if (byWallet) return byWallet;
+
+  return prisma.user.create({ data: { privyId, walletAddress } });
+};
+
 export interface ResolveOptions {
   rootKeys: string[];
   lookup: KeyLookup;
+  /** Absent when wallet login is off; a JWT is then simply not a valid key. */
+  verifyWallet?: WalletVerifier | undefined;
+  walletLookup?: WalletLookup | undefined;
 }
 
 /**
@@ -56,7 +105,7 @@ export interface ResolveOptions {
  */
 export async function resolvePrincipal(
   provided: string,
-  { rootKeys, lookup }: ResolveOptions,
+  { rootKeys, lookup, verifyWallet, walletLookup }: ResolveOptions,
 ): Promise<Principal | null> {
   // `some` over a constant-time compare: the number of comparisons depends on
   // how many root keys are configured, never on how many bytes matched.
@@ -66,6 +115,24 @@ export async function resolvePrincipal(
       userId: null,
       label: "root",
       scope: "root",
+    };
+  }
+
+  // A JWT is never an Averis key, so this branch is exclusive with the one
+  // below rather than a fallback from it. With wallet login off it is skipped
+  // entirely and a Privy token is rejected like any other unknown credential.
+  if (isJwtShaped(provided)) {
+    if (!verifyWallet) return null;
+    const verified = await verifyWallet(provided);
+    if (!verified) return null;
+
+    const account = await (walletLookup ?? prismaWalletLookup)(verified);
+    return {
+      id: account.id,
+      userId: account.id,
+      label: account.handle ?? shortAddress(verified.walletAddress),
+      scope: "user",
+      walletAddress: account.walletAddress ?? verified.walletAddress,
     };
   }
 
@@ -145,6 +212,10 @@ class PrincipalCache {
 export interface AuthOptions {
   /** Overrides the account lookup; tests inject a stub here. */
   lookup?: KeyLookup;
+  /** Verifies a Privy identity token. Absent disables wallet login. */
+  verifyWallet?: WalletVerifier | undefined;
+  /** Overrides wallet→account resolution; tests inject a stub here. */
+  walletLookup?: WalletLookup | undefined;
   /** Resolution cache lifetime, and therefore the revocation window. */
   cacheTtlMs?: number;
   /**
@@ -204,7 +275,12 @@ export function registerAuth(
       return;
     }
 
-    const principal = await resolvePrincipal(provided, { rootKeys: keys, lookup });
+    const principal = await resolvePrincipal(provided, {
+      rootKeys: keys,
+      lookup,
+      verifyWallet: options.verifyWallet,
+      walletLookup: options.walletLookup,
+    });
 
     if (!principal) {
       // With auth off an unrecognized key is not an error — it just carries no
@@ -228,6 +304,10 @@ export function registerAuth(
  * its own rows only, and because it is a filter rather than a post-fetch check,
  * another tenant's job is indistinguishable from one that never existed.
  */
+function shortAddress(address: string): string {
+  return address.length > 12 ? `${address.slice(0, 4)}…${address.slice(-4)}` : address;
+}
+
 export function requesterScope(principal: Principal | null): { requesterId?: string } {
   return principal?.scope === "user" && principal.userId
     ? { requesterId: principal.userId }

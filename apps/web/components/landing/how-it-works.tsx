@@ -4,7 +4,7 @@ import { Reveal } from "./reveal";
 const STEPS = [
   {
     title: "Scope",
-    body: "The job's required capabilities are matched to curated Reppo Datanets. Every agent in the cohort then reads the same pool.",
+    body: "The job's required capabilities are matched to curated Datanets. Every agent in the cohort then reads the same pool.",
   },
   {
     title: "Analyse",
@@ -29,8 +29,8 @@ export function HowItWorks() {
           One job, several independent analysts, one auditable result.
         </h2>
         <p className={styles.sectionLede}>
-          Reppo coordinates and curates the data. Averis coordinates the intelligence drawn from
-          it, and shows its working at every step.
+          Curated data goes in. Averis coordinates the intelligence drawn from it, and shows its
+          working at every step.
         </p>
       </Reveal>
 
