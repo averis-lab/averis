@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/landing/site-footer";
 import s from "./roadmap.module.css";
 
 export const metadata: Metadata = {
-  title: "Averis Roadmap — From verifiable intelligence to an agent economy",
+  title: "Averis Roadmap | From verifiable intelligence to an agent economy",
   description:
     "Five phases, ordered by dependency rather than by quarter: verifiable intelligence, agent reputation, an intelligence market, a prediction economy, and an autonomous agent economy. Phase 1 is the one being built and proven now.",
 };
@@ -84,9 +84,9 @@ const STACK: { name: string; note: string; here?: boolean }[] = [
 ];
 
 const HORIZONS: { key: Horizon; label: string; note: string }[] = [
-  { key: "now", label: "Now — build", note: "The MVP. Everything else depends on this being true." },
-  { key: "next", label: "Next — validate", note: "Unlocked once intelligence is verifiable and worth measuring." },
-  { key: "later", label: "Later — expand", note: "Long-term. Not work that needs starting today." },
+  { key: "now", label: "Now · build", note: "The MVP. Everything else depends on this being true." },
+  { key: "next", label: "Next · validate", note: "Unlocked once intelligence is verifiable and worth measuring." },
+  { key: "later", label: "Later · expand", note: "Long-term. Not work that needs starting today." },
 ];
 
 const PHASES: Phase[] = [
@@ -104,7 +104,7 @@ const PHASES: Phase[] = [
         corpus, the runtime records what was actually retrieved, evaluation is deterministic, and the
         merge keeps disagreement instead of averaging it away. The mechanism runs end to end. What it
         is <em>worth</em> is the open question, and this phase is not finished until that is
-        measured — which is why it is still marked in progress rather than complete.
+        measured, which is why it is still marked in progress rather than complete.
       </>
     ),
     flow: ["Datanet", "Specialist agents", "Evidence", "Evaluation", "Consensus", "Verified intelligence"],
@@ -116,7 +116,7 @@ const PHASES: Phase[] = [
         note: "Upstream limit and datanet filters are advisory, so the adapter enforces both locally: a datanet-scoped job cannot draw evidence from a datanet it did not select.",
       },
       {
-        text: "Evidence runtime — provenance the model cannot author",
+        text: "Evidence runtime: provenance the model cannot author",
         state: "shipped",
         note: "Claims cite an index into what the runtime retrieved. A reference to something never retrieved is dropped and the claim flagged unsupported.",
       },
@@ -131,12 +131,12 @@ const PHASES: Phase[] = [
       { text: "Public API, typed SDK, and an in-app playground", state: "shipped" },
       { text: "Tenancy: per-account keys, reads scoped in the query", state: "shipped" },
       {
-        text: "Budget guard — spend reserved atomically before execution",
+        text: "Budget guard: spend reserved atomically before execution",
         state: "shipped",
         note: "Reservation is written before the work runs and reconciled against actual cost afterwards, so no action can outrun its budget.",
       },
       {
-        text: "Autonomous operator loop — job discovery on a cadence",
+        text: "Autonomous operator loop: job discovery on a cadence",
         state: "planned",
         note: "The strategy engine exists and is unit-tested, but nothing runs it: no worker ticks it, no endpoint exposes it, and no operator has ever taken a job on its own. It was previously listed as shipped, which the rule at the top of this page does not allow.",
       },
@@ -151,11 +151,11 @@ const PHASES: Phase[] = [
         note: "Every agent currently ships bound to a deterministic mock that derives claims from real retrieved evidence. That proves the coordination; it does not prove the intelligence.",
       },
       {
-        text: "Cohort benchmark — three and five agents against one strong call",
+        text: "Cohort benchmark: three and five agents against one strong call",
         state: "planned",
-        note: "Accuracy claims need ground truth, so this follows resolution in phase 2. Before then it can honestly report cost, latency, consistency and evidence coverage — not accuracy.",
+        note: "Accuracy claims need ground truth, so this follows resolution in phase 2. Before then it can honestly report cost, latency, consistency and evidence coverage, but not accuracy.",
       },
-      { text: "Metrics and tracing — cost, latency and failure rates", state: "planned" },
+      { text: "Metrics and tracing: cost, latency and failure rates", state: "planned" },
       {
         text: "Authenticated reads for permissioned Datanets",
         state: "planned",
@@ -181,8 +181,8 @@ const PHASES: Phase[] = [
     body: (
       <>
         Once intelligence is verifiable, agents can be measured persistently rather than judged one
-        job at a time. Reputation is scored from resolved outcomes and deterministic evaluation —
-        never from capital — and it becomes multidimensional, because an agent strong on
+        job at a time. Reputation is scored from resolved outcomes and deterministic evaluation,
+        never from capital, and it becomes multidimensional, because an agent strong on
         smart-contract security may be weak on macroeconomic forecasting.
       </>
     ),
@@ -205,7 +205,7 @@ const PHASES: Phase[] = [
       {
         text: "More oracles: price and on-chain resolution",
         state: "planned",
-        note: "One oracle exists today, so price and on-chain predictions resolve as UNRESOLVABLE — honest, but it leaves accuracy sparse.",
+        note: "One oracle exists today, so price and on-chain predictions resolve as UNRESOLVABLE. Honest, but it leaves accuracy sparse.",
       },
     ],
     goal: (
@@ -247,7 +247,11 @@ const PHASES: Phase[] = [
       },
       { text: "An on-chain settlement driver, so agents are actually paid", state: "planned" },
       { text: "Open agent registry, selected on measured reputation", state: "planned" },
-      { text: "Payers on chains beyond Solana", state: "planned" },
+      {
+        text: "Settlement on Robinhood Chain",
+        state: "planned",
+        note: "The paywall now quotes an eip155 challenge, and the config refuses to start without a chain id, an RPC endpoint and a token contract. What is still missing is the half that moves money: no payment has ever settled, and no driver exists to sign one.",
+      },
     ],
     goal: (
       <>
@@ -268,7 +272,7 @@ const PHASES: Phase[] = [
       <>
         Prediction markets enter here and not earlier, and not because they are interesting. Once
         agents carry reputation and economic activity, a resolved forecast becomes the sharpest
-        available measurement of whether intelligence was actually useful — it is the feedback
+        available measurement of whether intelligence was actually useful. It is the feedback
         mechanism the reputation layer is missing, not a product in its own right.
       </>
     ),
@@ -323,13 +327,13 @@ const PHASES: Phase[] = [
       {
         text: "A first bounded-autonomy surface, in paper mode",
         state: "active",
-        note: "A trading automation reads resolved jobs and opens paper positions under a policy its owner set. There is no key column, no wallet the server can sign with, and setting the mode to LIVE returns 501 — it exercises the shape of a spending policy, never the money. It is a consumer of the protocol, not part of it.",
+        note: "A trading automation reads resolved jobs and opens paper positions under a policy its owner set. There is no key column, no wallet the server can sign with, and setting the mode to LIVE returns 501. It exercises the shape of a spending policy, never the money. It is a consumer of the protocol, not part of it.",
       },
       { text: "Agent-to-agent commerce across networks", state: "planned" },
     ],
     goal: (
       <>
-        Agents become <strong>economic participants</strong> rather than merely software users —
+        Agents become <strong>economic participants</strong> rather than merely software users:
         measurable, accountable and bounded.
       </>
     ),
@@ -365,14 +369,14 @@ export default function RoadmapPage() {
 
           <p className={s.lede}>
             Five phases, ordered by <strong>dependency rather than by quarter</strong>. Each one
-            builds the primitive the next one needs, which is why there are no dates on phases 4 and
-            5 — a date there would be fiction, and the Now / Next / Later bands say how far out
+            builds the primitive the next one needs, which is why there are no dates on phases 4
+            and 5: a date there would be fiction. The Now / Next / Later bands say how far out
             something is without inventing one.
           </p>
           <p className={s.lede}>
             One rule governs the deliverables: a thing is marked <strong>shipped</strong> only when
-            it has been run end to end, never when the code merely exists. That is why phase 1 —
-            most of which this repository already implements — is still in progress.
+            it has been run end to end, never when the code merely exists. That is why phase 1 is
+            still in progress, even though this repository already implements most of it.
           </p>
 
           <dl className={s.meta}>
@@ -464,10 +468,11 @@ export default function RoadmapPage() {
             <h2 className={s.closingTitle}>Why the order is the order</h2>
             <p className={s.closingBody}>
               Prediction markets are not in phase 4 because they are interesting. They are there
-              because a market is only a measurement instrument once agents already carry reputation
-              — before that it measures liquidity, not intelligence. Privacy is not in phase 5
-              because the technology is appealing; it is there because confidential settlement has
-              nothing to protect until agents have economic activity worth concealing.
+              because a market is only a measurement instrument once agents already carry
+              reputation; before that it measures liquidity, not intelligence. Privacy is not in
+              phase 5 because the technology is appealing; it is there because confidential
+              settlement has nothing to protect until agents have economic activity worth
+              concealing.
             </p>
             <p className={s.closingBody}>
               The same discipline applies backwards. Nothing above phase 1 is worth building if the

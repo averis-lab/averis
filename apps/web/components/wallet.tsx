@@ -62,7 +62,7 @@ export function WalletProvider({
         appearance: {
           theme: "dark",
           accentColor: "#e5484d",
-          walletChainType: "solana-only",
+          walletChainType: "ethereum-only",
         },
         // No embedded wallet is created. Averis has no use for one it would be
         // responsible for, and creating a wallet as a side effect of signing in

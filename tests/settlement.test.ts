@@ -167,7 +167,7 @@ describe("drivers", () => {
     expect(createSettlementDriver({ SETTLEMENT_DRIVER: " Ledger " } as never).name).toBe("ledger");
     // Naming a chain that is not implemented must fail loudly, not fall back
     // to a driver that quietly does nothing.
-    expect(() => createSettlementDriver({ SETTLEMENT_DRIVER: "solana-mainnet" } as never)).toThrow(
+    expect(() => createSettlementDriver({ SETTLEMENT_DRIVER: "robinhood" } as never)).toThrow(
       /not implemented|Supported/,
     );
   });

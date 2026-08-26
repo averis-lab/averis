@@ -234,8 +234,11 @@ caller pays for a job instead of holding a key:
 
 ```bash
 X402_ENABLED=true
-X402_NETWORK=solana-devnet
-X402_PAY_TO=<your address>
+X402_NETWORK=robinhood          # a label for logs; the chain id is what binds
+X402_CHAIN_ID=<evm chain id>
+X402_RPC_URL=<rpc endpoint>
+X402_ASSET=<usdc contract, 0x…>
+X402_PAY_TO=<your address, 0x…>
 X402_FACILITATOR_URL=<a facilitator>
 ```
 
@@ -254,17 +257,25 @@ Four things are worth knowing about:
 - **Root keys skip the paywall.** The workers, the operator and the demo call
   this endpoint too. An account key is a customer and still pays.
 - **The payment is recorded on the job it bought**, in `metadata.payment`.
+- **Nothing is hardcoded.** There is no table of known networks: the chain id,
+  the RPC endpoint and the USDC contract all come from the environment and the
+  paywall refuses to start without them. A wrong token address is not a
+  misconfiguration, it is funds sent somewhere nobody controls, so the same rule
+  that forbids a default `X402_PAY_TO` covers all three. Both addresses are
+  checked against `0x` + 40 hex at startup, which catches a Solana address
+  pasted into an EVM field.
 - **Startup fails loudly** if the facilitator does not support the configured
   scheme and network, naming the pair it rejected. Check what one supports with
   `curl <facilitator>/supported` — coverage varies, and not every facilitator
-  serves every Solana cluster.
+  serves every EVM chain.
 
 A paid request with no key is anonymous: it has no account, so it gets no
 tenancy — the job it creates is visible only to a root key. Present an account
 key *and* pay to get both.
 
-Only Solana is wired up, and the fee is charged once, up front. Both are noted
-in the gaps below.
+The fee is charged once, up front, and no payment has ever settled — the
+challenge is issued, the driver that signs does not exist. Both are noted in the
+gaps below.
 
 ### Automation (trading)
 
@@ -416,7 +427,7 @@ Known gaps, in the order they are worth closing:
 | No metrics or tracing | Cost, latency and failure rates are invisible |
 | No on-chain settlement driver | Payments must be made elsewhere and recorded with the `ledger` driver |
 | x402 charges a flat fee | A one-agent job costs the same as a five-agent one |
-| x402 is Solana-only | An EVM payer cannot pay; the scheme exists, it is not registered |
+| x402 has never settled | The challenge is issued and verified; no payment has completed on any chain |
 | No automation tick loop | `evaluate` and `sweep` are called by hand; nothing polls for resolved jobs |
 | No price adapter shipped | An automation cannot mark a position until `EXECUTION_PRICE_URL` points somewhere verified |
 
@@ -425,14 +436,26 @@ custom inference network, ZK infrastructure, cross-chain.
 
 ## Deploying
 
-Two Fly apps from one image: `fly.toml` runs the gateway and the workers as two
-process groups, `fly.web.toml` runs the site. Two apps rather than one because
-Fly gives an app a single hostname, and the gateway needs a public one of its
-own for SDK callers.
+Two Fly apps from one image: `fly.toml` runs the gateway and the four lifecycle
+workers in one process, `fly.web.toml` runs the site. Two apps rather than one
+because Fly gives an app a single hostname, and the gateway needs a public one
+of its own for SDK callers and x402 payers.
 
-Neither datastore is Fly's. Postgres is **Supabase** and Redis is a managed
-instance you create yourself; Fly bills only for the machines that run the
-processes. Both fit inside a free tier at this size.
+**Each app deploys from its own config.** A bare `fly deploy` reads `fly.toml`
+and updates the gateway only, which is the most common way to ship a change and
+then not see it on the site:
+
+```bash
+npm run deploy:api    # fly deploy --config fly.toml
+npm run deploy:web    # fly deploy --config fly.web.toml
+npm run deploy        # both, api first so migrations land before the site
+```
+
+The API goes first because its `release_command` runs `prisma migrate deploy`.
+
+The datastore is not Fly's: Postgres is **Supabase**, and the queue lives inside
+it via `pgmq`, so there is no Redis to provision, secure or pay for. Fly bills
+only for the machines that run the processes.
 
 ```bash
 fly apps create averis-api
@@ -441,7 +464,6 @@ fly apps create averis-web
 fly secrets set --app averis-api \
   DATABASE_URL='<Supabase pooler, :6543, ?pgbouncer=true&sslmode=require&uselibpqcompat=true>' \
   DIRECT_DATABASE_URL='<Supabase direct, :5432, ?sslmode=require&uselibpqcompat=true>' \
-  REDIS_URL='rediss://default:<enc-pw>@<host>:<port>' \
   DATABASE_POOL_MAX='<budget / process count>' \
   API_KEYS='<root key>' \
   CORS_ORIGINS='https://averis-web.fly.dev'
@@ -461,7 +483,11 @@ The site reaches the gateway over Fly's private network
 (`AVERIS_API_URL=http://averis-api.internal:4000`), so that hop never leaves the
 organisation. Both apps must be in the same org for that name to resolve.
 
-### Picking the Redis
+### If you run Redis instead
+
+The deployment above uses `QUEUE_DRIVER=pgmq` and needs no Redis at all. The
+BullMQ driver stays in the codebase for deployments that already run one; what
+follows applies only to those.
 
 `fly redis create` provisions Upstash through Fly and bills per command, which
 is the wrong meter for this workload. BullMQ keeps a *blocking* read open per
@@ -483,9 +509,9 @@ Two properties are non-negotiable whichever provider you choose:
   hostnames these providers use require in order to present the right
   certificate.
 
-`QUEUE_DRIVER=memory` removes Redis entirely, but it is only correct inside a
-single process: the API would accept jobs that no worker ever sees. It is for
-the demo and CI, not for the two-process-group deployment above.
+`QUEUE_DRIVER=memory` removes the queue entirely, but it is only correct inside
+a single process: the API would accept jobs that no worker ever sees. It is for
+the demo and CI, never for a deployment.
 
 ### Why two Supabase connection strings
 

@@ -12,7 +12,7 @@ const STEPS = [
   },
   {
     title: "Evaluate",
-    body: "Each output is scored deterministically on five dimensions — evidence quality, internal consistency, specificity, corroboration and alignment to the datanet's own published rubric. No model grades another model.",
+    body: "Each output is scored deterministically on five dimensions: evidence quality, internal consistency, specificity, corroboration and alignment to the datanet's own published rubric. No model grades another model.",
   },
   {
     title: "Merge",

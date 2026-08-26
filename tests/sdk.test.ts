@@ -44,10 +44,10 @@ const challenge = (accepts: unknown[]) => ({
 
 const OPTION = {
   scheme: "exact",
-  network: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-  asset: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
+  network: "eip155:42161",
+  asset: "0x0000000000000000000000000000000000000a55",
   amount: "250000",
-  payTo: "9xQeWvG816bUx9EPa2mNSMh1p4hbGRQ7pd5yPeeeeeee",
+  payTo: "0x000000000000000000000000000000000000dead",
 };
 
 describe("request plumbing", () => {

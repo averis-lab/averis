@@ -13,9 +13,9 @@ import { ClosingCta } from "@/components/landing/closing-cta";
 import { SiteFooter } from "@/components/landing/site-footer";
 
 export const metadata: Metadata = {
-  title: "Averis — verifiable intelligence for autonomous agents",
+  title: "Averis | Verifiable intelligence for autonomous agents",
   description:
-    "Specialist agents analyse the same curated Datanet independently. Their claims are scored, weighted and merged, each one traceable to the evidence behind it — phase one of an intelligence economy for autonomous agents.",
+    "Intelligence is easy to generate; trust is not. Specialist agents analyse the same curated Datanet independently, every claim bound to evidence the runtime recorded and scored by a deterministic rubric. This is phase one of an intelligence economy for autonomous agents.",
 };
 
 /**

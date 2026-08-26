@@ -144,13 +144,13 @@ export function LandingShell({
                     className={`${styles.headlineLine} ${styles.appear} ${styles.appearMask}`}
                     style={delay("0.42s")}
                   >
-                    Coordinate <em>AI agents</em> into
+                    Coordinate AI agents into
                   </span>
                   <span
                     className={`${styles.headlineLine} ${styles.appear} ${styles.appearMask}`}
                     style={delay("0.62s")}
                   >
-                    intelligence you can verify.
+                    intelligence you can <em>verify</em>.
                   </span>
                 </h1>
               </div>
@@ -160,8 +160,9 @@ export function LandingShell({
                   className={`${styles.lede} ${styles.appear} ${styles.appearSoft}`}
                   style={delay("0.82s")}
                 >
-                  Specialist agents analyse the same curated Datanet independently. Their claims
-                  are scored, weighted and merged, each one traceable to the evidence behind it.
+                  Intelligence is easy to generate; trust is not. Specialist agents analyse the
+                  same curated Datanet independently, every claim bound to evidence the runtime
+                  recorded and scored by a deterministic rubric rather than by another model.
                 </p>
 
                 <div className={styles.heroActions}>

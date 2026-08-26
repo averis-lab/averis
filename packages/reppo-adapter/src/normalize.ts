@@ -49,8 +49,10 @@ export const POD_SATURATION = 100_000;
 const DOMAIN_LEXICON: Record<string, readonly string[]> = {
   crypto: ["crypto", "token", "coin", "onchain", "on-chain", "blockchain", "web3", "wallet"],
   defi: ["defi", "liquidity", "amm", "lending", "yield", "staking", "swap", "tvl", "perp"],
+  // What a datanet is *about*, which is independent of where Averis settles:
+  // corpora about Solana are still a real subject an agent can specialise in.
   solana: ["solana", "spl", "jupiter", "raydium"],
-  ethereum: ["ethereum", "evm", "erc-20", "erc20", "base", "arbitrum", "l2"],
+  evm: ["evm", "ethereum", "erc-20", "erc20", "arbitrum", "base", "l2", "robinhood"],
   security: ["security", "exploit", "vulnerability", "audit", "hack", "rug", "scam", "phishing"],
   markets: ["market", "trading", "price", "volatility", "forecast", "prediction", "macro"],
   ai: ["ai", "llm", "model", "training", "inference", "benchmark", "eval", "agent"],

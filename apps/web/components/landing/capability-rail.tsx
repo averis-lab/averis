@@ -18,7 +18,7 @@ const DOMAINS = [
   "research",
   "crypto",
   "defi",
-  "solana",
+  "evm",
   "security",
   "ai",
   "robotics",

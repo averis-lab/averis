@@ -17,11 +17,11 @@ const AGENTS = [
   {
     name: "Onchain Analyst",
     description:
-      "You are an onchain analyst specializing in Solana, DeFi mechanics, token flows and liquidity structure.",
+      "You are an onchain analyst specializing in EVM chains, DeFi mechanics, token flows and liquidity structure.",
     capabilities: [
       { domain: "crypto", skill: null, declared: 0.9 },
       { domain: "defi", skill: "liquidity-analysis", declared: 0.92 },
-      { domain: "solana", skill: null, declared: 0.88 },
+      { domain: "evm", skill: null, declared: 0.88 },
     ],
     tools: ["reppo_list_datanets", "reppo_search_data", "reppo_get_datanet_data", "compute_evidence_stats"],
     pricePerJob: 0.5,

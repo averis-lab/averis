@@ -10,37 +10,34 @@
  * somebody else's wallet or a silent misconfiguration that looks like it works.
  */
 
-export interface SolanaNetwork {
-  /** CAIP-2 identifier the x402 protocol uses on the wire. */
-  caip2: `${string}:${string}`;
-  /** Canonical USDC mint for this cluster. */
+export interface EvmNetwork {
+  /** CAIP-2 identifier the x402 protocol uses on the wire: `eip155:<chainId>`. */
+  caip2: `eip155:${number}`;
+  chainId: number;
+  /** USDC contract on this chain. */
   usdc: string;
   rpcUrl: string;
 }
 
-export const NETWORKS: Record<string, SolanaNetwork> = {
-  "solana-mainnet": {
-    caip2: "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
-    usdc: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
-    rpcUrl: "https://api.mainnet-beta.solana.com",
-  },
-  "solana-devnet": {
-    caip2: "solana:4uhcVJyU9pJkvQyS88uRDiswHXSCkY3z",
-    usdc: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-    rpcUrl: "https://api.devnet.solana.com",
-  },
-  "solana-testnet": {
-    caip2: "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1",
-    usdc: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU",
-    rpcUrl: "https://api.testnet.solana.com",
-  },
-};
+/**
+ * There is no table of known networks.
+ *
+ * A registry would have to carry a chain id, an RPC endpoint and a token
+ * contract for each entry, and a wrong token contract is not a
+ * misconfiguration — it is funds sent somewhere nobody controls. The same
+ * reasoning that already forbids a default `X402_PAY_TO` applies to every one
+ * of those values, so all three are read from the environment and the paywall
+ * refuses to start without them.
+ */
 
-/** USDC is six decimals on every cluster; overridable for a non-USDC mint. */
+/** USDC is six decimals on every EVM chain; overridable for a different token. */
 const DEFAULT_DECIMALS = 6;
 
+/** 0x followed by 20 bytes. Catches a Solana address pasted into an EVM field. */
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
 export interface PaymentConfig {
-  network: SolanaNetwork;
+  network: EvmNetwork;
   networkName: string;
   payTo: string;
   facilitatorUrl: string;
@@ -82,17 +79,33 @@ export function resolvePaymentConfig(
 ): PaymentConfig | null {
   if ((env["X402_ENABLED"] ?? "false").toLowerCase() !== "true") return null;
 
-  const networkName = env["X402_NETWORK"] ?? "solana-devnet";
-  const network = NETWORKS[networkName];
-  if (!network) {
+  // A label for logs and the challenge; it identifies nothing on the wire.
+  const networkName = (env["X402_NETWORK"] ?? "robinhood").trim();
+
+  const chainId = Number(env["X402_CHAIN_ID"]);
+  if (!Number.isInteger(chainId) || chainId <= 0) {
     throw new PaymentConfigError(
-      `X402_NETWORK="${networkName}" is not supported. Use one of: ${Object.keys(NETWORKS).join(", ")}.`,
+      "X402_ENABLED=true requires X402_CHAIN_ID, the EVM chain id payments settle on.",
+    );
+  }
+
+  const rpcUrl = (env["X402_RPC_URL"] ?? "").trim();
+  if (!rpcUrl) {
+    throw new PaymentConfigError("X402_ENABLED=true requires X402_RPC_URL for that chain.");
+  }
+
+  const asset = (env["X402_ASSET"] ?? env["USDC_TOKEN"] ?? "").trim();
+  if (!EVM_ADDRESS.test(asset)) {
+    throw new PaymentConfigError(
+      "X402_ENABLED=true requires X402_ASSET, the USDC contract address on this chain, as 0x followed by 40 hex characters.",
     );
   }
 
   const payTo = (env["X402_PAY_TO"] ?? "").trim();
-  if (!payTo) {
-    throw new PaymentConfigError("X402_ENABLED=true requires X402_PAY_TO — the address payments settle to.");
+  if (!EVM_ADDRESS.test(payTo)) {
+    throw new PaymentConfigError(
+      "X402_ENABLED=true requires X402_PAY_TO, the address payments settle to, as 0x followed by 40 hex characters.",
+    );
   }
 
   const facilitatorUrl = (env["X402_FACILITATOR_URL"] ?? "").trim();
@@ -102,14 +115,19 @@ export function resolvePaymentConfig(
     );
   }
 
+  const network: EvmNetwork = {
+    caip2: `eip155:${chainId}`,
+    chainId,
+    usdc: asset,
+    rpcUrl,
+  };
+
   const config: PaymentConfig = {
     network,
     networkName,
     payTo,
     facilitatorUrl,
-    // USDC_MINT already exists for the settlement scaffolding; reuse it before
-    // falling back to the cluster's canonical mint.
-    asset: (env["X402_ASSET"] ?? env["USDC_MINT"] ?? network.usdc).trim(),
+    asset,
     assetDecimals: positive(env["X402_ASSET_DECIMALS"], DEFAULT_DECIMALS),
     priceUsd: positive(env["X402_PRICE"], 0.1),
     maxTimeoutSeconds: positive(env["X402_MAX_TIMEOUT_SECONDS"], 120),

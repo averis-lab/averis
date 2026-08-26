@@ -72,7 +72,7 @@ export function Developers() {
         <h2 className={styles.sectionTitle}>One call in, an auditable report out.</h2>
         <p className={styles.sectionLede}>
           <code className={s.inlineCode}>runJob</code> throws if the job ends FAILED rather than
-          returning a partial result — a caller who forgot to check status would otherwise act on
+          returning a partial result. A caller who forgot to check status would otherwise act on
           intelligence the protocol declined to stand behind. Every endpoint below can also be
           called from the in-app playground, which shows the equivalent curl and SDK code for
           whatever you just sent.

@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   isPaidRoute,
-  NETWORKS,
   PaymentConfigError,
   priceInBaseUnits,
   resolvePaymentConfig,
@@ -9,9 +8,15 @@ import {
   type PaymentConfig,
 } from "../apps/api/src/payments/config";
 
+const PAY_TO = "0x000000000000000000000000000000000000dEaD";
+const USDC = "0x0000000000000000000000000000000000000A55";
+
 const enabled = {
   X402_ENABLED: "true",
-  X402_PAY_TO: "9xQeWvG816bUx9EPa2mNSMh1p4hbGRQ7pd5yPeeeeeee",
+  X402_CHAIN_ID: "42161",
+  X402_RPC_URL: "https://rpc.example",
+  X402_ASSET: USDC,
+  X402_PAY_TO: PAY_TO,
   X402_FACILITATOR_URL: "https://facilitator.example",
 } satisfies NodeJS.ProcessEnv;
 
@@ -25,12 +30,27 @@ describe("resolvePaymentConfig", () => {
     expect(resolvePaymentConfig({})).toBeNull();
     expect(resolvePaymentConfig({ X402_ENABLED: "false" })).toBeNull();
     // A half-configured environment must not switch the paywall on by accident.
-    expect(resolvePaymentConfig({ X402_PAY_TO: "abc", X402_FACILITATOR_URL: "https://x" })).toBeNull();
+    expect(resolvePaymentConfig({ X402_PAY_TO: PAY_TO, X402_FACILITATOR_URL: "https://x" })).toBeNull();
   });
 
   it("refuses to start without somewhere to send the money", () => {
     expect(() => resolvePaymentConfig({ ...enabled, X402_PAY_TO: "  " })).toThrow(PaymentConfigError);
     expect(() => resolvePaymentConfig({ ...enabled, X402_PAY_TO: "" })).toThrow(/X402_PAY_TO/);
+  });
+
+  it("rejects an address that is not an EVM address", () => {
+    // The shape a Solana address has. Accepting it would quote a challenge
+    // payable to something that does not exist on this chain.
+    const solana = "9xQeWvG816bUx9EPa2mNSMh1p4hbGRQ7pd5yPeeeeeee";
+    expect(() => resolvePaymentConfig({ ...enabled, X402_PAY_TO: solana })).toThrow(/X402_PAY_TO/);
+    expect(() => resolvePaymentConfig({ ...enabled, X402_ASSET: solana })).toThrow(/X402_ASSET/);
+  });
+
+  it("refuses to start without a chain id, an RPC and a token", () => {
+    expect(() => resolvePaymentConfig({ ...enabled, X402_CHAIN_ID: "" })).toThrow(/X402_CHAIN_ID/);
+    expect(() => resolvePaymentConfig({ ...enabled, X402_CHAIN_ID: "0" })).toThrow(/X402_CHAIN_ID/);
+    expect(() => resolvePaymentConfig({ ...enabled, X402_RPC_URL: "" })).toThrow(/X402_RPC_URL/);
+    expect(() => resolvePaymentConfig({ ...enabled, X402_ASSET: "" })).toThrow(/X402_ASSET/);
   });
 
   it("refuses to start without a facilitator", () => {
@@ -39,24 +59,26 @@ describe("resolvePaymentConfig", () => {
     );
   });
 
-  it("names the supported networks when given one that is not", () => {
-    expect(() => resolvePaymentConfig({ ...enabled, X402_NETWORK: "base" })).toThrow(
-      /solana-mainnet, solana-devnet, solana-testnet/,
-    );
-  });
-
-  it("defaults to devnet, USDC and a ten-cent fee", () => {
+  it("builds the CAIP-2 identifier from the chain id", () => {
     const resolved = resolvePaymentConfig(enabled)!;
-    expect(resolved.networkName).toBe("solana-devnet");
-    expect(resolved.network.caip2).toBe(NETWORKS["solana-devnet"]!.caip2);
-    expect(resolved.asset).toBe(NETWORKS["solana-devnet"]!.usdc);
+    expect(resolved.networkName).toBe("robinhood");
+    expect(resolved.network.chainId).toBe(42161);
+    expect(resolved.network.caip2).toBe("eip155:42161");
+    expect(resolved.asset).toBe(USDC);
     expect(resolved.assetDecimals).toBe(6);
     expect(resolved.priceUsd).toBe(0.1);
   });
 
-  it("prefers the mint already configured for settlement", () => {
-    const resolved = resolvePaymentConfig({ ...enabled, USDC_MINT: "SomeOtherMint111111111111" })!;
-    expect(resolved.asset).toBe("SomeOtherMint111111111111");
+  it("takes the label from the environment without letting it change the chain", () => {
+    const resolved = resolvePaymentConfig({ ...enabled, X402_NETWORK: "robinhood-testnet" })!;
+    expect(resolved.networkName).toBe("robinhood-testnet");
+    expect(resolved.network.caip2).toBe("eip155:42161");
+  });
+
+  it("falls back to the token already configured for settlement", () => {
+    const { X402_ASSET: _unused, ...withoutAsset } = enabled;
+    const resolved = resolvePaymentConfig({ ...withoutAsset, USDC_TOKEN: USDC })!;
+    expect(resolved.asset).toBe(USDC);
   });
 
   it("carries the root keys that may skip the paywall", () => {

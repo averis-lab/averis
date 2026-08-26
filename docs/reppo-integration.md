@@ -119,5 +119,5 @@ unreachable, so a transient upstream outage does not fail every in-flight job.
 ## Settlement note
 
 Reppo settles on Base (`chainId: 8453`). This protocol's escrow layer targets
-Solana/USDC. They are independent layers — the intelligence protocol reads
+an EVM chain in USDC. They are independent layers — the intelligence protocol reads
 Reppo data but does not transact on Reppo's chain.

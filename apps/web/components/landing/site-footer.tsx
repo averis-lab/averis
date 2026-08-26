@@ -66,7 +66,7 @@ export function SiteFooter() {
           </p>
           <span className={s.footerBadge}>
             <i aria-hidden="true" />
-            Protocol MVP — settlement scaffolded, not enabled
+            Protocol MVP: settlement scaffolded, not enabled
           </span>
         </div>
 

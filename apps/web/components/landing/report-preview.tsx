@@ -82,7 +82,7 @@ export function ReportPreview() {
             <i />
           </span>
           <span className={panel.crumb}>
-            averis.ai<span className={panel.slash}>/</span>jobs
+            averislayer.xyz<span className={panel.slash}>/</span>jobs
             <span className={panel.slash}>/</span>
             <strong>job_7f2ad91c</strong>
           </span>
@@ -168,7 +168,7 @@ export function ReportPreview() {
               </div>
               <div className={`${panel.stance} ${panel.stanceAgainst}`}>
                 <span className={panel.stanceAgent}>Data Quality Agent</span>
-                <p>No — the sampling bias makes any corpus-wide read unsound.</p>
+                <p>No. The sampling bias makes any corpus-wide read unsound.</p>
               </div>
             </div>
           </div>

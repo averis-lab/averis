@@ -32,7 +32,7 @@ const PHASES = [
   {
     index: "Phase 4",
     title: "Prediction economy",
-    body: "Forecasts resolved against real outcomes — the sharpest available measure of whether the intelligence was worth anything.",
+    body: "Forecasts resolved against real outcomes, the sharpest available measure of whether the intelligence was worth anything.",
   },
   {
     index: "Phase 5",

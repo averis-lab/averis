@@ -75,8 +75,8 @@ gateway against the real database.
 `POST /v1/jobs` can sit behind an x402 paywall (`X402_ENABLED`, off by
 default). The gateway answers an unpaid request with `402` and its payment
 requirements; the client retries with a signed payload; a facilitator verifies
-it and settles it on Solana. The facilitator never holds funds — it submits a
-transaction the payer already signed.
+it and settles it on the configured EVM chain. The facilitator never holds
+funds — it submits a transaction the payer already signed.
 
 | Piece | Location |
 |---|---|

@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/landing/site-footer";
 import s from "./whitepaper.module.css";
 
 export const metadata: Metadata = {
-  title: "Averis Whitepaper v1.0 — The Intelligence Economy for Autonomous Agents",
+  title: "Averis Whitepaper v1.0 | The Intelligence Economy for Autonomous Agents",
   description:
     "Open infrastructure for autonomous agents to acquire information, produce verifiable intelligence, establish measurable reputation, make predictions, and participate in machine-native economic activity.",
 };
@@ -27,37 +27,37 @@ export const metadata: Metadata = {
  */
 
 const SECTIONS = [
-  { id: "abstract", title: "Abstract", part: "I — Foundations" },
-  { id: "problem", title: "The problem", part: "I — Foundations" },
-  { id: "thesis", title: "The Averis thesis", part: "I — Foundations" },
-  { id: "vision", title: "Vision", part: "I — Foundations" },
+  { id: "abstract", title: "Abstract", part: "I · Foundations" },
+  { id: "problem", title: "The problem", part: "I · Foundations" },
+  { id: "thesis", title: "The Averis thesis", part: "I · Foundations" },
+  { id: "vision", title: "Vision", part: "I · Foundations" },
 
-  { id: "architecture", title: "System architecture", part: "II — Protocol" },
-  { id: "agents", title: "The agent protocol", part: "II — Protocol" },
-  { id: "evidence", title: "Evidence protocol", part: "II — Protocol" },
-  { id: "evaluation", title: "Evaluation protocol", part: "II — Protocol" },
-  { id: "consensus", title: "Consensus protocol", part: "II — Protocol" },
-  { id: "reputation", title: "Reputation protocol", part: "II — Protocol" },
-  { id: "prediction", title: "Prediction protocol", part: "II — Protocol" },
-  { id: "prediction-markets", title: "Prediction markets", part: "II — Protocol" },
+  { id: "architecture", title: "System architecture", part: "II · Protocol" },
+  { id: "agents", title: "The agent protocol", part: "II · Protocol" },
+  { id: "evidence", title: "Evidence protocol", part: "II · Protocol" },
+  { id: "evaluation", title: "Evaluation protocol", part: "II · Protocol" },
+  { id: "consensus", title: "Consensus protocol", part: "II · Protocol" },
+  { id: "reputation", title: "Reputation protocol", part: "II · Protocol" },
+  { id: "prediction", title: "Prediction protocol", part: "II · Protocol" },
+  { id: "prediction-markets", title: "Prediction markets", part: "II · Protocol" },
 
-  { id: "marketplace", title: "Intelligence marketplace", part: "III — Economy" },
-  { id: "discovery", title: "Agent discovery and routing", part: "III — Economy" },
-  { id: "x402", title: "x402 and agent-native commerce", part: "III — Economy" },
-  { id: "privacy", title: "Privacy-preserving commerce", part: "III — Economy" },
-  { id: "identity", title: "Identity and the Agent Passport", part: "III — Economy" },
-  { id: "agent-treasury", title: "Autonomous treasury", part: "III — Economy" },
-  { id: "economy", title: "The intelligence economy", part: "III — Economy" },
+  { id: "marketplace", title: "Intelligence marketplace", part: "III · Economy" },
+  { id: "discovery", title: "Agent discovery and routing", part: "III · Economy" },
+  { id: "x402", title: "x402 and agent-native commerce", part: "III · Economy" },
+  { id: "privacy", title: "Privacy-preserving commerce", part: "III · Economy" },
+  { id: "identity", title: "Identity and the Agent Passport", part: "III · Economy" },
+  { id: "agent-treasury", title: "Autonomous treasury", part: "III · Economy" },
+  { id: "economy", title: "The intelligence economy", part: "III · Economy" },
 
-  { id: "security", title: "Security principles", part: "IV — Outlook" },
-  { id: "integrations", title: "Open infrastructure", part: "IV — Outlook" },
-  { id: "roadmap", title: "Development roadmap", part: "IV — Outlook" },
-  { id: "boundaries", title: "What Averis is not", part: "IV — Outlook" },
-  { id: "flywheel", title: "Economic flywheel", part: "IV — Outlook" },
-  { id: "principles", title: "Design principles", part: "IV — Outlook" },
-  { id: "research", title: "Future research", part: "IV — Outlook" },
-  { id: "transition", title: "The larger transition", part: "IV — Outlook" },
-  { id: "conclusion", title: "Conclusion", part: "IV — Outlook" },
+  { id: "security", title: "Security principles", part: "IV · Outlook" },
+  { id: "integrations", title: "Open infrastructure", part: "IV · Outlook" },
+  { id: "roadmap", title: "Development roadmap", part: "IV · Outlook" },
+  { id: "boundaries", title: "What Averis is not", part: "IV · Outlook" },
+  { id: "flywheel", title: "Economic flywheel", part: "IV · Outlook" },
+  { id: "principles", title: "Design principles", part: "IV · Outlook" },
+  { id: "research", title: "Future research", part: "IV · Outlook" },
+  { id: "transition", title: "The larger transition", part: "IV · Outlook" },
+  { id: "conclusion", title: "Conclusion", part: "IV · Outlook" },
 ];
 
 /** Figures line up on the digit when they are set in the mono face. */
@@ -723,9 +723,9 @@ export default function WhitepaperPage() {
               <Sub>10.1 Trust should be earned</Sub>
               <p>
                 An autonomous agent should not be considered reliable merely because it claims
-                expertise. Reputation should emerge from demonstrated performance — evidence quality,
-                historical accuracy, consistency, calibration, prediction outcomes, domain-specific
-                performance, and evaluation history.
+                expertise. Reputation should emerge from demonstrated performance: evidence
+                quality, historical accuracy, consistency, calibration, prediction outcomes,
+                domain-specific performance, and evaluation history.
               </p>
               <Chain
                 steps={[
@@ -864,7 +864,7 @@ export default function WhitepaperPage() {
               </p>
               <Table
                 n={2}
-                caption="Illustrative routing for a Solana smart-contract security analysis. The requesting system may optimise for quality, price, speed, or a combination."
+                caption="Illustrative routing for a Robinhood Chain smart-contract security analysis. The requesting system may optimise for quality, price, speed, or a combination."
                 head={["Candidate", "Security reputation", "Price"]}
                 rows={[
                   ["Candidate A", num("96.1"), num("$0.08")],
@@ -969,7 +969,7 @@ export default function WhitepaperPage() {
                 <div className={s.passportGrid}>
                   <div className={s.passportField}>
                     <span className={s.passportLabel}>Capabilities</span>
-                    <span className={s.passportValue}>Markets · DeFi · Solana</span>
+                    <span className={s.passportValue}>Markets · DeFi · EVM</span>
                   </div>
                   <div className={s.passportField}>
                     <span className={s.passportLabel}>Market reputation</span>
@@ -996,7 +996,7 @@ export default function WhitepaperPage() {
               <p className={s.caption} style={{ border: 0, background: "none", padding: "12px 0 0" }}>
                 <span className={s.exhibitLabel}>Exhibit</span>
                 Illustrative. An external application would not need to trust an agent because the
-                agent claims competence — it could inspect its demonstrated history.
+                agent claims competence; it could inspect its demonstrated history.
               </p>
             </Section>
 
@@ -1356,7 +1356,7 @@ export default function WhitepaperPage() {
             <Section index={26} id="research" title="Future research">
               <p>
                 Several areas require substantial research before implementation. These questions are
-                not secondary — they are fundamental to building a sustainable machine economy.
+                not secondary. They are fundamental to building a sustainable machine economy.
               </p>
               <Terms
                 items={[

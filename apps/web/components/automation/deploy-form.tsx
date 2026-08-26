@@ -79,7 +79,7 @@ export function DeployForm() {
         label="Capabilities"
         hint="Which cohort's verdicts this automation acts on, comma separated."
       >
-        <input name="capabilities" defaultValue="crypto, solana, markets" className={INPUT} />
+        <input name="capabilities" defaultValue="crypto, evm, markets" className={INPUT} />
       </Field>
 
       <div className="flex flex-wrap gap-1.5">

@@ -678,7 +678,7 @@ model Transaction {
   rewardId  String?           @unique
   reward    Reward?           @relation(fields: [rewardId], references: [id], onDelete: SetNull)
 
-  chain     String            @default("solana")
+  chain     String            @default("robinhood")
   /// Intent is recorded before signing; the policy engine gates the transition.
   intent    Json              @default("{}")
   simulation Json?

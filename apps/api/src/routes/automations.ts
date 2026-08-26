@@ -18,7 +18,7 @@ const HISTORY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const DeploySchema = z.object({
   name: z.string().min(2).max(60),
-  capabilities: z.array(z.string()).max(10).default(["crypto", "solana", "markets"]),
+  capabilities: z.array(z.string()).max(10).default(["crypto", "evm", "markets"]),
   policy: TradePolicySchema.partial().default({}),
 });
 
