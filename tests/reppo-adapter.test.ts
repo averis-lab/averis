@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  ReppoAuthError,
   ReppoFixtureProvider,
   ReppoHttpProvider,
   curationQuality,
   inferDomains,
   normalizePod,
   POD_SATURATION,
+  withFixtureFallback,
 } from "@averis/reppo-adapter";
 import { DataItemSchema, DatanetSchema } from "@averis/types";
 
@@ -181,5 +183,233 @@ describe("http provider", () => {
 
     const items = await provider.listData("net-1", { limit: 10 });
     expect(items.map((i) => i.id)).toEqual(["a"]);
+  });
+});
+
+/**
+ * Routes a fake fetch by path prefix and records what was asked for, so a test
+ * can assert on the requests that were *not* made as well as the ones that were.
+ */
+function routedFetch(routes: Record<string, unknown>) {
+  const calls: string[] = [];
+  // Longest route first, so `/me/subnets/priv-1` is not swallowed by `/me/subnets`.
+  const keys = Object.keys(routes).sort((a, b) => b.length - a.length);
+  const impl = (async (url: string) => {
+    const parsed = new URL(url);
+    const path = parsed.pathname + parsed.search;
+    calls.push(path);
+    const key = keys.find((r) => path.includes(r));
+    if (key === undefined) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
+    const body = routes[key];
+    if (body instanceof Response) return body.clone();
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as unknown as typeof fetch;
+  return { impl, calls };
+}
+
+const pod = (id: string, subnet: string | null, votes = 1000) => ({
+  id,
+  name: `Pod ${id}`,
+  description: "body",
+  privateSubnetId: subnet,
+  cumulativeUpVotesVolume: votes,
+  cumulativeDownVotesVolume: 0,
+});
+
+const subnet = (id: string, name: string) => ({
+  id,
+  subnetName: name,
+  subnetDescription: "",
+  upVoteVolume: 1000,
+  downVoteVolume: 0,
+});
+
+describe("authenticated reads for permissioned datanets", () => {
+  it("never touches the /me/* surface without a credential", async () => {
+    const { impl, calls } = routedFetch({
+      "/public/subnets": { data: { subnets: [subnet("net-1", "Public")] } },
+      "/public/pods": { data: { pods: [pod("a", "net-1")] } },
+    });
+    const provider = new ReppoHttpProvider({ cacheTtlMs: 0, fetchImpl: impl });
+
+    await provider.listDatanets();
+    await provider.listData("net-1");
+    await provider.searchData({ text: "x", limit: 5 });
+
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls.some((c) => c.includes("/me/"))).toBe(false);
+  });
+
+  it("surfaces an owned datanet that the public listing does not carry", async () => {
+    const { impl } = routedFetch({
+      "/public/subnets": { data: { subnets: [subnet("pub-1", "Public one")] } },
+      "/me/subnets": { data: { subnets: [subnet("priv-1", "Permissioned")] } },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    const ids = (await provider.listDatanets()).map((d) => d.id);
+    expect(ids).toContain("priv-1");
+    expect(ids).toContain("pub-1");
+  });
+
+  it("orders owned datanets first, so the limit cannot drop the only rows the credential reaches", async () => {
+    const { impl } = routedFetch({
+      "/public/subnets": {
+        data: { subnets: [subnet("pub-1", "One"), subnet("pub-2", "Two")] },
+      },
+      "/me/subnets": { data: { subnets: [subnet("priv-1", "Permissioned")] } },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    const datanets = await provider.listDatanets({ limit: 2 });
+    expect(datanets).toHaveLength(2);
+    expect(datanets[0]!.id).toBe("priv-1");
+  });
+
+  it("does not report an owned datanet that fails the caller's search term", async () => {
+    const { impl } = routedFetch({
+      "/public/subnets": { data: { subnets: [] } },
+      "/me/subnets": {
+        data: { subnets: [subnet("priv-1", "Solana liquidity"), subnet("priv-2", "Robotics")] },
+      },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    const ids = (await provider.listDatanets({ search: "robotics" })).map((d) => d.id);
+    expect(ids).toEqual(["priv-2"]);
+  });
+
+  it("accepts the bare-array envelope the authenticated surface may return", async () => {
+    // Unverified against a live account, so both documented shapes are allowed.
+    const { impl } = routedFetch({
+      "/public/subnets": { data: { subnets: [] } },
+      "/me/subnets": { data: [subnet("priv-1", "Permissioned")] },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    expect((await provider.listDatanets()).map((d) => d.id)).toEqual(["priv-1"]);
+  });
+
+  it("resolves a datanet that 404s on the public surface", async () => {
+    const { impl } = routedFetch({
+      "/me/subnets/priv-1": { data: { subnet: subnet("priv-1", "Permissioned") } },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    const found = await provider.getDatanet("priv-1");
+    expect(found?.id).toBe("priv-1");
+
+    const anonymous = new ReppoHttpProvider({ cacheTtlMs: 0, fetchImpl: impl });
+    expect(await anonymous.getDatanet("priv-1")).toBeNull();
+  });
+
+  it("merges owned pods into a datanet-scoped read without leaking another datanet's", async () => {
+    const { impl } = routedFetch({
+      "/public/pods": { data: { pods: [pod("public-a", "net-1")] } },
+      "/me/pods": { data: { pods: [pod("mine-a", "net-1"), pod("mine-b", "net-2")] } },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    const ids = (await provider.listData("net-1", { limit: 10 })).map((i) => i.id);
+    expect(ids).toContain("mine-a");
+    expect(ids).toContain("public-a");
+    expect(ids).not.toContain("mine-b");
+  });
+
+  it("does not return the same pod twice when it appears on both surfaces", async () => {
+    const { impl } = routedFetch({
+      "/public/pods": { data: { pods: [pod("shared", "net-1")] } },
+      "/me/pods": { data: { pods: [pod("shared", "net-1")] } },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    expect(await provider.listData("net-1", { limit: 10 })).toHaveLength(1);
+  });
+
+  it("applies the search term to owned pods, which have no server-side search", async () => {
+    const { impl } = routedFetch({
+      "/public/pods": { data: { pods: [] } },
+      "/me/pods": {
+        data: {
+          pods: [
+            { ...pod("hit", "net-1"), name: "Liquidity report" },
+            { ...pod("miss", "net-1"), name: "Robotics report" },
+          ],
+        },
+      },
+    });
+    const provider = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "session",
+      fetchImpl: impl,
+    });
+
+    const ids = (await provider.searchData({ text: "liquidity", limit: 10 })).map((i) => i.id);
+    expect(ids).toEqual(["hit"]);
+  });
+});
+
+describe("rejected credentials", () => {
+  const unauthorized = () =>
+    new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      privyToken: "stale",
+      fetchImpl: (async () =>
+        new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })) as unknown as typeof fetch,
+    });
+
+  it("raises a distinct error rather than a generic upstream failure", async () => {
+    await expect(unauthorized().listDatanets()).rejects.toBeInstanceOf(ReppoAuthError);
+  });
+
+  it("is not answered with recorded public fixtures", async () => {
+    // The whole point of the distinction: degrading here would hand back the
+    // public corpus dressed as the permissioned one.
+    await expect(withFixtureFallback(unauthorized()).listDatanets()).rejects.toBeInstanceOf(
+      ReppoAuthError,
+    );
+  });
+
+  it("still degrades to fixtures when upstream is merely unreachable", async () => {
+    const offline = new ReppoHttpProvider({
+      cacheTtlMs: 0,
+      fetchImpl: (async () => {
+        throw new Error("ECONNREFUSED");
+      }) as unknown as typeof fetch,
+    });
+
+    const datanets = await withFixtureFallback(offline).listDatanets({ limit: 5 });
+    expect(datanets.length).toBeGreaterThan(0);
   });
 });

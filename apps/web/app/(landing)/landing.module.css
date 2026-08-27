@@ -214,12 +214,29 @@
   border-left: 1px solid var(--border-soft);
 }
 
+/*
+ * The badge and the contract address share one row.
+ *
+ * The address was under the calls to action, in the supporting column, where
+ * it did not fit: a 42-character monospace address plus its label and button
+ * needs ~420px and that column is 252–344px wide, so it overflowed at every
+ * desktop width. The lead column is 496–824px, which holds it outright, and
+ * putting it beside the badge costs the hero no extra height — which matters
+ * in a frame locked to one viewport.
+ */
+.heroMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
 .badge {
   position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 22px;
   padding: 9px 15px;
   border: 0;
   border-radius: 5px;
@@ -395,6 +412,86 @@
   transform: translateX(3px);
 }
 
+/* ─── Contract address ───────────────────────────────────────────────────── */
+/*
+ * Sits under the calls to action, which is where the eye lands after them, and
+ * is deliberately quieter than both: it is a fact somebody comes looking for,
+ * not something the page is asking anyone to do.
+ */
+.contract {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  padding: 5px 5px 5px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.contractLabel {
+  flex: none;
+  color: #85858b;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.contractValue {
+  min-width: 0;
+  color: #ededf0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  /* Selectable: the button is the convenience, not the only way out. */
+  user-select: all;
+}
+
+/* The short form is a display truncation. The button copies the whole address
+   whichever one is on screen. */
+.contractShort {
+  display: none;
+}
+
+.contractCopy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #85858b;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+.contractCopy svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+.contractCopy:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* ─── Stats ──────────────────────────────────────────────────────────────── */
 /*
  * Three facts on a ruled rail rather than three phrases floating in a row. The
@@ -512,7 +609,7 @@
     --header-y: 28px; --header-x: 64px; --stats-x: 96px; --stats-y: 44px;
     --copy-max: 1240px; --lede-max: 540px;
   }
-  .badge { margin-bottom: 26px; }
+  .heroMeta { margin-bottom: 26px; }
   .lede { margin-top: 22px; }
   .heroActions { margin-top: 30px; gap: 12px; }
   .statIcon { width: 22px; height: 22px; }
@@ -556,7 +653,7 @@
     --header-y: 16px; --header-x: 28px; --stats-x: 36px; --stats-y: 28px;
     --hero-gap: 64px; --copy-max: 820px; --lede-max: 440px;
   }
-  .badge { margin-bottom: 16px; }
+  .heroMeta { margin-bottom: 16px; }
   .lede { margin-top: 14px; }
   .heroActions { margin-top: 20px; }
   /* 276px a cell at this width: the longest label needs two lines. */
@@ -586,7 +683,7 @@
 /* ─── Short viewports ────────────────────────────────────────────────────── */
 @media (min-width: 901px) and (max-height: 850px) {
   .root { --header-y: 14px; --stats-y: 24px; --hero-gap: 48px; --h1: 40px; }
-  .badge { margin-bottom: 12px; }
+  .heroMeta { margin-bottom: 12px; }
   .lede { margin-top: 12px; }
   .heroActions { margin-top: 16px; }
 }
@@ -595,7 +692,7 @@
     --h1: 34px; --lede: 14px; --hero-gap: 32px; --stats-y: 18px;
     --nav-h: 30px; --btn-h: 34px; --hero-btn-h: 36px;
   }
-  .badge { margin-bottom: 8px; }
+  .heroMeta { margin-bottom: 8px; }
 }
 
 /* ─── ≥901 desktop lock: one frame, no scroll ────────────────────────────── */
@@ -644,6 +741,8 @@
 /* ─── ≤560 ───────────────────────────────────────────────────────────────── */
 @media (max-width: 560px) {
   .root { --h1: 34px; --lede: 16px; --header-x: 16px; }
+  .contractFull { display: none; }
+  .contractShort { display: inline; }
   .heroActions { flex-direction: column; }
   .heroActions .btn { width: 100%; }
 }

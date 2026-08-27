@@ -9,7 +9,14 @@ import {
   type SettlementInstruction,
 } from "@averis/protocol";
 import { CreateJobSchema } from "@averis/types";
-import { resetDatabase, seedRegistry, startPipeline, waitForTerminal, type Harness } from "./harness";
+import {
+  resetDatabase,
+  seedRegistry,
+  startPipeline,
+  waitForRewards,
+  waitForTerminal,
+  type Harness,
+} from "./harness";
 
 /**
  * Settlement against a real database.
@@ -44,8 +51,7 @@ async function resolvedJob(): Promise<string> {
   );
 
   expect(await waitForTerminal(jobId)).toBe("RESOLVED");
-  const rewards = await prisma.reward.count({ where: { jobId } });
-  expect(rewards).toBeGreaterThan(0);
+  expect(await waitForRewards(jobId)).toBeGreaterThan(0);
   return jobId;
 }
 

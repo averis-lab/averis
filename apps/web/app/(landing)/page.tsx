@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { LandingShell } from "@/components/landing/landing-shell";
+import { TokenTicker } from "@/components/landing/token-ticker";
 import { CapabilityRail } from "@/components/landing/capability-rail";
 import { ReportPreview } from "@/components/landing/report-preview";
 import { HowItWorks } from "@/components/landing/how-it-works";
@@ -26,10 +27,16 @@ export const metadata: Metadata = {
  * Everything before Progression is written in the present tense about a
  * mechanism that runs. Progression is the single place the larger arc appears,
  * which is what keeps the rest of the page from having to hedge.
+ *
+ * The token rail closes the opening screen rather than interrupting the
+ * argument or trailing after it. A reader who came for the price finds it
+ * without scrolling, on the same rule the hero's own figures sit on, and the
+ * numbered sections still begin where they always did.
  */
 export default function LandingPage() {
   return (
     <LandingShell>
+      <TokenTicker />
       <CapabilityRail />
       <ReportPreview />
       <HowItWorks />

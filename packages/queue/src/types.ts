@@ -23,6 +23,14 @@ export interface QueueMessage<T = unknown> {
   name: string;
   payload: T;
   attempt: number;
+  /**
+   * W3C `traceparent` of the enqueue, when the producer was being traced.
+   *
+   * Drivers capture this at `enqueue` and restore it around the handler, so a
+   * consumer span attaches to the request that queued the work rather than
+   * starting a trace of its own.
+   */
+  traceparent?: string | undefined;
 }
 
 export type MessageHandler<T = unknown> = (message: QueueMessage<T>) => Promise<void>;

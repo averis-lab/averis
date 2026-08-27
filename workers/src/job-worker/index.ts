@@ -1,4 +1,5 @@
 import { QUEUES, type Subscription } from "@averis/queue";
+import { traced } from "../traced";
 import { ExecutionPipeline, JobEngine, type ProtocolContext } from "@averis/protocol";
 
 /**
@@ -14,13 +15,13 @@ export function startJobWorker(ctx: ProtocolContext): Subscription {
 
   return ctx.queue.process<{ jobId: string }>(
     QUEUES.job,
-    async (message) => {
+    traced(ctx, QUEUES.job, async (message) => {
       const { jobId } = message.payload;
       ctx.logger.info("job worker picked up job", { jobId, attempt: message.attempt });
 
       const result = await pipeline.runJob(jobId);
       ctx.logger.info("job execution finished", { ...result });
-    },
+    }),
     {
       concurrency,
       // Exhausting every retry is a terminal outcome; record it on the job

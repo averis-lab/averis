@@ -29,6 +29,12 @@ function toRow(item: DataItem, context: ToolContext): EvidenceRow {
     // agent's opinion of the source.
     reliability: item.qualityScore,
     metadata: {
+      // Upstream identity, carried explicitly so the persistence layer can
+      // link this evidence to its cached `DataItem` without parsing `source`
+      // back apart. `publishedAt` is repeated here because `timestamp` is
+      // consumed as the evidence's own retrieval time downstream.
+      externalId: item.id,
+      publishedAt: item.publishedAt ? item.publishedAt.toISOString() : null,
       datanetId: item.datanetId,
       url: item.url,
       upVotes: item.curation.upVotes,

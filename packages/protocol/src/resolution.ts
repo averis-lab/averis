@@ -1,5 +1,6 @@
 import { prisma } from "@averis/db";
 import {
+  OracleUnavailableError,
   brierScore,
   evaluateCriteria,
   type PendingPrediction,
@@ -25,7 +26,9 @@ export class ResolutionStage {
     this.oracles = oracles;
   }
 
-  async run(now: Date = new Date()): Promise<{ resolved: number; unresolvable: number }> {
+  async run(
+    now: Date = new Date(),
+  ): Promise<{ resolved: number; unresolvable: number; deferred: number }> {
     const due = await prisma.prediction.findMany({
       where: { outcome: "PENDING", deadline: { lte: now } },
       include: { claim: { include: { output: { select: { agentId: true } } } } },
@@ -34,6 +37,8 @@ export class ResolutionStage {
 
     let resolved = 0;
     let unresolvable = 0;
+    /** Left PENDING because the oracle was unreachable, not because it said no. */
+    let deferred = 0;
 
     for (const row of due) {
       const criteria = row.criteria as PendingPrediction["criteria"];
@@ -59,7 +64,7 @@ export class ResolutionStage {
       }
 
       try {
-        const observed = await oracle.observe(prediction);
+        const observed = await oracle.observe(prediction, now);
         if (observed === null) {
           await this.record(row.id, "UNRESOLVABLE", null, `oracle:${oracle.name}`, null);
           unresolvable++;
@@ -76,6 +81,20 @@ export class ResolutionStage {
         );
         resolved++;
       } catch (error) {
+        if (error instanceof OracleUnavailableError) {
+          // Nothing is written: the row stays PENDING and the next sweep tries
+          // again. It settles as UNRESOLVABLE only once the oracle declines on
+          // its own terms — which it will, once the deadline is far enough
+          // behind that a spot reading could not describe it anyway.
+          this.ctx.logger.warn("prediction deferred; oracle unreachable", {
+            predictionId: row.id,
+            oracle: oracle.name,
+            error: error.message,
+          });
+          deferred++;
+          continue;
+        }
+
         this.ctx.logger.warn("prediction resolution failed", {
           predictionId: row.id,
           error: error instanceof Error ? error.message : String(error),
@@ -85,7 +104,7 @@ export class ResolutionStage {
       }
     }
 
-    return { resolved, unresolvable };
+    return { resolved, unresolvable, deferred };
   }
 
   private async record(

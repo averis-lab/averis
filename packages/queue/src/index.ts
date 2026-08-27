@@ -7,6 +7,7 @@ export * from "./types";
 export { MemoryQueueDriver } from "./memory";
 export { BullMQDriver, type BullMQConfig } from "./bullmq";
 export { PgmqDriver, type PgmqConfig, type SqlExecutor } from "./pgmq";
+export { captureTraceparent, packTrace, unpackTrace } from "./trace";
 
 /**
  * Picks a driver from the environment.

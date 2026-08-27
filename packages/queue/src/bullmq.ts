@@ -8,6 +8,8 @@ import {
   type QueueName,
   type Subscription,
 } from "./types";
+import { captureTraceparent, packTrace, unpackTrace } from "./trace";
+import { parseTraceparent, withContext } from "@averis/tracing";
 
 export interface BullMQConfig {
   redisUrl: string;
@@ -77,7 +79,12 @@ export class BullMQDriver implements QueueDriver {
     payload: T,
     options: EnqueueOptions = {},
   ): Promise<string> {
-    const job = await this.queue(queue).add(name, payload, {
+    // Redis job data is the only field of a BullMQ job this driver controls,
+    // so the trace context travels inside it — and only when there is one, so
+    // an untraced deployment writes exactly the bytes it wrote before.
+    const data = packTrace(payload, captureTraceparent());
+
+    const job = await this.queue(queue).add(name, data, {
       attempts: options.attempts ?? 3,
       backoff: { type: "exponential", delay: options.backoffMs ?? 1_000 },
       removeOnComplete: this.keepCompleted,
@@ -98,12 +105,16 @@ export class BullMQDriver implements QueueDriver {
     const worker = new Worker(
       queue,
       async (job) => {
-        await handler({
-          id: String(job.id),
-          name: job.name,
-          payload: job.data as T,
-          attempt: job.attemptsMade + 1,
-        });
+        const { payload, traceparent } = unpackTrace(job.data);
+        await withContext(parseTraceparent(traceparent), () =>
+          handler({
+            id: String(job.id),
+            name: job.name,
+            payload: payload as T,
+            attempt: job.attemptsMade + 1,
+            traceparent,
+          }),
+        );
       },
       {
         connection: this.connection,
@@ -115,12 +126,14 @@ export class BullMQDriver implements QueueDriver {
     if (options.onFailed) {
       worker.on("failed", (job, error) => {
         if (!job) return;
+        const { payload, traceparent } = unpackTrace(job.data);
         void options.onFailed?.(
           {
             id: String(job.id),
             name: job.name,
-            payload: job.data,
+            payload,
             attempt: job.attemptsMade,
+            traceparent,
           },
           error,
         );

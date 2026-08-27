@@ -8,6 +8,8 @@ import {
   type QueueName,
   type Subscription,
 } from "./types";
+import { captureTraceparent } from "./trace";
+import { parseTraceparent, withContext } from "@averis/tracing";
 
 /**
  * Runs one parameterised statement and returns its rows.
@@ -55,6 +57,12 @@ interface Envelope<T = unknown> {
   attempts: number;
   backoffMs: number;
   dedupeId?: string;
+  /**
+   * W3C `traceparent` of the enqueue. Optional, and absent from every message
+   * written before tracing existed — so a queue drained across a deploy reads
+   * fine either way.
+   */
+  traceparent?: string;
 }
 
 interface ReadRow {
@@ -139,12 +147,14 @@ export class PgmqDriver implements QueueDriver {
       if (claimed.length === 0) return dedupeId;
     }
 
+    const traceparent = captureTraceparent();
     const envelope: Envelope<T> = {
       name,
       payload,
       attempts: options.attempts ?? 3,
       backoffMs: options.backoffMs ?? 250,
       ...(dedupeId ? { dedupeId } : {}),
+      ...(traceparent ? { traceparent } : {}),
     };
 
     // pgmq counts delay in whole seconds. Rounding up rather than down: a
@@ -241,10 +251,11 @@ export class PgmqDriver implements QueueDriver {
       // pgmq counts reads, and the first read is 1 — the same base the memory
       // and BullMQ drivers report.
       attempt: row.read_ct,
+      traceparent: envelope.traceparent,
     };
 
     try {
-      await handler(message);
+      await withContext(parseTraceparent(envelope.traceparent), () => handler(message));
       await run(`SELECT pgmq."delete"($1, $2::bigint)`, queue, msgId);
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));

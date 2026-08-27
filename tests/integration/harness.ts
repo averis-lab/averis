@@ -132,6 +132,27 @@ export async function waitForTerminal(jobId: string, timeoutMs = 45_000): Promis
   );
 }
 
+/**
+ * Blocks until a resolved job's rewards have actually been written.
+ *
+ * Reward accounting is a *separate* queue message, consumed after the job is
+ * already RESOLVED, so reading rewards the instant `waitForTerminal` returns
+ * races the resolution worker. That read used to win almost always, which is
+ * worse than always losing: the race stayed invisible until something else on
+ * the execution path got slightly slower.
+ */
+export async function waitForRewards(jobId: string, timeoutMs = 20_000): Promise<number> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const count = await prisma.reward.count({ where: { jobId } });
+    if (count > 0) return count;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  throw new Error(`job ${jobId} resolved but wrote no rewards within ${timeoutMs}ms`);
+}
+
 /** The status path a job actually took, in order. */
 export async function lifecycleOf(jobId: string): Promise<string[]> {
   const events = await prisma.jobEvent.findMany({

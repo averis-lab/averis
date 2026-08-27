@@ -137,8 +137,8 @@ const PHASES: Phase[] = [
       },
       {
         text: "Autonomous operator loop: job discovery on a cadence",
-        state: "planned",
-        note: "The strategy engine exists and is unit-tested, but nothing runs it: no worker ticks it, no endpoint exposes it, and no operator has ever taken a job on its own. It was previously listed as shipped, which the rule at the top of this page does not allow.",
+        state: "shipped",
+        note: "Discover, then strategy, then budget, then execute — in that order, so nothing runs before it is known to be both worth doing and affordable. It is not part of the deployed process group: the machine in production runs the gateway and the workers, and an operator has to be started alongside them to take a job on its own.",
       },
       {
         text: "Migrations, replacing schema push",
@@ -148,18 +148,27 @@ const PHASES: Phase[] = [
       {
         text: "A cohort bound to real models rather than the deterministic provider",
         state: "active",
-        note: "Every agent currently ships bound to a deterministic mock that derives claims from real retrieved evidence. That proves the coordination; it does not prove the intelligence.",
+        note: "Every agent currently ships bound to a deterministic mock that derives claims from real retrieved evidence. That proves the coordination; it does not prove the intelligence. Per-agent binding and the credential guard are both in place, so what remains is a key and a run against it: an agent whose provider has none is now dropped before selection rather than failing after its budget was reserved.",
       },
       {
-        text: "Cohort benchmark: three and five agents against one strong call",
-        state: "planned",
-        note: "Accuracy claims need ground truth, so this follows resolution in phase 2. Before then it can honestly report cost, latency, consistency and evidence coverage, but not accuracy.",
+        text: "Cohort benchmark: one, three and five agents on the same question",
+        state: "shipped",
+        note: "`npm run benchmark` runs the same query at each cohort size and puts cost, latency, confidence, consensus, evidence coverage and surfaced conflicts side by side. Accuracy is absent on purpose: it needs resolved predictions, which is phase 2, and a number invented here would be the one thing the protocol exists to measure honestly.",
       },
-      { text: "Metrics and tracing: cost, latency and failure rates", state: "planned" },
+      {
+        text: "Cost, latency and failure rates, measured per run",
+        state: "shipped",
+        note: "Read from what each run actually recorded rather than estimated from a price list, and surfaced on the dashboard. The failure rate is over terminal jobs only, and reads as blank rather than 0% until a job has finished — a rate over an empty denominator is not zero.",
+      },
       {
         text: "Authenticated reads for permissioned Datanets",
-        state: "planned",
-        note: "The adapter reads only the public surface today, which is the whole enterprise tier it cannot reach.",
+        state: "active",
+        note: "The adapter now reads the authenticated surface as well as the public one: a datanet that is permissioned or unpublished is absent from the public listing and resolves through `/me/*` instead, and it is listed first so a page limit cannot drop the only rows the credential was configured to reach. Two honest limits keep this in progress rather than shipped. It has never run against a live authenticated account, so those envelopes are written to the documentation rather than verified against a real response. And `/me/*` is scoped to the identity, not the datanet — a permissioned datanet is readable to the extent the credential owns it, not in general.",
+      },
+      {
+        text: "Distributed tracing across the gateway and the workers",
+        state: "shipped",
+        note: "One trace from the HTTP request through every worker stage it sets off, W3C context on the wire and OTLP to any collector. Propagation lives in the queue drivers rather than at the call sites, because a hop that has to be remembered is one that will eventually be forgotten. Run end to end — gateway through three stages against a real database, the Redis driver against a real Redis, the exporter against a real Jaeger. Two things it has not done: the pgmq driver was exercised with its SQL stubbed, since the extension is absent from the local image, and none of it has yet run in production.",
       },
     ],
     goal: (
@@ -204,8 +213,8 @@ const PHASES: Phase[] = [
       { text: "Agent discovery and routing on measured reputation", state: "planned" },
       {
         text: "More oracles: price and on-chain resolution",
-        state: "planned",
-        note: "One oracle exists today, so price and on-chain predictions resolve as UNRESOLVABLE. Honest, but it leaves accuracy sparse.",
+        state: "active",
+        note: "Both now exist beside curation. A price prediction reads two keyless public venues and is refused if they disagree by more than a percent, because choosing between two conflicting prices is a coin flip that would land in an agent's accuracy as though it were a measurement. An on-chain prediction reads block height, a native balance, or an ERC-20 supply or holder balance, scaled by the decimals the contract itself reports. Both distinguish \u201ccannot be answered\u201d from \u201ccould not be reached\u201d: the first settles as UNRESOLVABLE, the second leaves the prediction pending for the next sweep, so a dropped connection no longer deletes an observation an agent had earned. Two limits keep this in progress. Both read the present rather than the deadline \u2014 public nodes are pruned and spot endpoints have no history \u2014 so a reading is refused once the sweep falls too far behind, and neither has yet scored a real prediction end to end.",
       },
     ],
     goal: (

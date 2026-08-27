@@ -34,8 +34,37 @@ export interface ResolutionOracle {
   readonly name: string;
   /** Whether this oracle can answer for the given source locator. */
   supports(source: string): boolean;
-  /** Returns null when the value could not be observed. */
-  observe(prediction: PendingPrediction): Promise<number | string | null>;
+  /**
+   * Returns null when the value could not be observed.
+   *
+   * `now` is the sweep's clock, passed in rather than read from the wall so an
+   * oracle deciding whether it has arrived too late to observe measures that
+   * against the same instant that selected the prediction as due.
+   */
+  observe(prediction: PendingPrediction, now?: Date): Promise<number | string | null>;
+}
+
+/**
+ * The source could not be reached, as distinct from having no answer.
+ *
+ * These two are worth separating because their consequences differ and only
+ * one of them is reversible. A prediction nothing can ever settle — no oracle,
+ * an unobservable metric, a deadline long past — is honestly UNRESOLVABLE, and
+ * that is terminal. A prediction whose oracle merely timed out is not: burning
+ * it removes a real observation from an agent's accuracy for no reason other
+ * than a dropped connection, and the row can never come back to be scored.
+ *
+ * An oracle throws this to leave the prediction PENDING for the next sweep.
+ * Retrying is bounded without needing a counter: once the deadline is far
+ * enough behind that a spot reading no longer describes it, the oracle stops
+ * throwing and starts declining, and the prediction settles as UNRESOLVABLE
+ * for the true reason rather than the transient one.
+ */
+export class OracleUnavailableError extends Error {
+  constructor(readonly oracle: string, message: string) {
+    super(`${oracle} could not be reached: ${message}`);
+    this.name = "OracleUnavailableError";
+  }
 }
 
 /**

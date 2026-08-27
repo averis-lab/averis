@@ -1196,6 +1196,182 @@
 }
 
 /* ─── Responsive ─────────────────────────────────────────────────────────── */
+/* ─── Live token rail ────────────────────────────────────────────────────── */
+/*
+ * A ticker rail, sat directly under the hero.
+ *
+ * It deliberately mirrors the hero's own stats rail above it — same left edge,
+ * same hairlines, same cell rhythm — so the page reads as closing the hero
+ * with figures rather than starting a new section with an advertisement. It is
+ * the last thing on the opening screen, not the first thing of the argument.
+ *
+ * Green is the one place on this page that is not red. A price movement is the
+ * single figure where colour carries meaning rather than emphasis, and showing
+ * a rise in the brand's alarm colour would be worse than the inconsistency —
+ * so --up is desaturated hard, enough to read against black without turning
+ * the rail into a second accent.
+ */
+.ticker {
+  --up: #3fb27f;
+  --down: var(--red, #e5484d);
+
+  position: relative;
+  z-index: 1;
+  padding: 0 var(--stats-x, 72px);
+}
+
+.tickerInner {
+  display: grid;
+  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+/* Flush to the rail's left edge, so it lines up with the headline above it
+   and the section grids below. */
+.tickerBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 26px 15px 0;
+}
+
+.tickerSymbol {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  color: #fff;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+/* The one serif glyph down here, matching the emphasis the headings use. */
+.tickerSigil {
+  font-family: var(--serif), "Instrument Serif", Times, serif;
+  font-style: italic;
+  font-size: 1.2em;
+  color: var(--red, #e5484d);
+}
+
+.tickerState {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 7px;
+  border: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  color: #85858b;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tickerState i {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+}
+.tickerState[data-status="live"] {
+  border-color: rgba(63, 178, 127, 0.3);
+  background: rgba(63, 178, 127, 0.06);
+  color: var(--up);
+}
+.tickerState[data-status="live"] i {
+  animation: tickerPulse 2.4s ease-in-out infinite;
+}
+/* A price still on screen after a failed read. Amber, not red: the figure is
+   old, not wrong, and the page has one alarm colour already. */
+.tickerState[data-status="stale"] {
+  border-color: rgba(214, 158, 46, 0.28);
+  color: #d69e2e;
+}
+.tickerState[data-status="offline"] {
+  border-color: rgba(229, 72, 77, 0.28);
+  color: var(--down);
+}
+
+@keyframes tickerPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 178, 127, 0.5); }
+  70% { opacity: 0.7; box-shadow: 0 0 0 4px rgba(63, 178, 127, 0); }
+}
+
+.tickerCell {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 15px 22px;
+  border-left: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+}
+
+.tickerTerm {
+  color: #6f6f74;
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/*
+ * Tabular figures throughout.
+ *
+ * These numbers are replaced every twenty seconds while somebody is reading
+ * them. Proportional digits would reflow the row on each poll, which is how a
+ * live price ends up drawing more attention to its own twitching than to its
+ * value.
+ */
+.tickerValue {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #ededf0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 15px;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The headline figure carries the weight. Selected by its marker, not its
+   position: the brand block is a sibling div and would win :first-of-type. */
+.tickerCell[data-lead] .tickerValue {
+  color: #fff;
+  font-size: 17px;
+}
+
+/*
+ * The direction of the last movement, not a 24h change.
+ *
+ * It fades rather than sitting there: a stale arrow next to a price that has
+ * not moved in an hour reads as a live claim about a trend, which is precisely
+ * what this figure cannot support.
+ */
+.tickerArrow {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  display: block;
+  animation: tickerFade 6s ease-out forwards;
+}
+.tickerArrow[data-dir="up"] { color: var(--up); }
+.tickerArrow[data-dir="down"] { color: var(--down); }
+
+@keyframes tickerFade {
+  0% { opacity: 0; transform: translateY(var(--from, 3px)); }
+  12% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @media (max-width: 1280px) {
   /* Five text columns are ~200px each below this; the track folds to two rows
      and the second row starts a fresh left edge. */
@@ -1208,6 +1384,8 @@
 }
 
 @media (max-width: 1100px) {
+  .tickerCell { padding-left: 16px; padding-right: 16px; }
+
   .devGrid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1217,6 +1395,38 @@
 }
 
 @media (max-width: 900px) {
+  .ticker {
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  /*
+   * Three rows on a phone: the brand, the headline price, then the two
+   * supporting figures side by side.
+   *
+   * Four cells abreast leaves each about eighty pixels, and the ether price is
+   * fifteen characters that must not be abbreviated — truncating a price is
+   * how a reader takes away a number that is wrong by orders of magnitude. The
+   * price earns its own full-width row for the same reason it is bigger.
+   */
+  .tickerInner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tickerBrand {
+    grid-column: 1 / -1;
+    padding: 13px 0 12px;
+    border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  }
+  .tickerCell { padding: 11px 14px 12px; }
+  .tickerCell[data-lead] {
+    grid-column: 1 / -1;
+    padding-left: 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  }
+  /* The first of the two on the bottom row is flush with the rail's edge. */
+  .tickerCell[data-lead] + .tickerCell { padding-left: 0; border-left: 0; }
+  .tickerValue { font-size: 13px; letter-spacing: -0.045em; }
+  .tickerCell[data-lead] .tickerValue { font-size: 16px; }
+  .tickerTerm { font-size: 8.5px; letter-spacing: 0.12em; }
+
   .body {
     padding: 20px 18px 22px;
   }
@@ -1308,6 +1518,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .tickerState[data-status="live"] i,
+  .tickerArrow,
   .railMotion,
   .panel::before,
   [data-revealed="true"] .track i,

@@ -85,5 +85,27 @@ export const PodEnvelope = z.object({
   data: z.object({ pod: ReppoPodSchema }),
 });
 
+/**
+ * The authenticated `/me/*` surface.
+ *
+ * The public envelopes above were verified against live responses. These were
+ * not: verifying them needs a Privy session for a real account, and none was
+ * available. They are therefore written to accept either the documented
+ * `{"data": {"subnets": [...]}}` envelope or a bare `{"data": [...]}` array,
+ * and they degrade to an empty list rather than throwing when the shape is
+ * neither — the same tolerance the public schemas already apply, for the same
+ * reason.
+ */
+const meListOf = <T extends z.ZodTypeAny>(item: T, key: "subnets" | "pods") =>
+  z.object({
+    data: z.union([
+      z.object({ [key]: z.array(item).default([]) }).transform((d) => d[key] as z.infer<T>[]),
+      z.array(item),
+    ]),
+  });
+
+export const MeSubnetListEnvelope = meListOf(ReppoSubnetSchema, "subnets");
+export const MePodListEnvelope = meListOf(ReppoPodSchema, "pods");
+
 /** Documented error shape: `{ "error": "Human-readable message" }` */
 export const ReppoErrorEnvelope = z.object({ error: z.string() });

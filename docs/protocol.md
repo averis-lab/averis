@@ -260,6 +260,46 @@ noise.
 This loop is what makes reputation mean anything: everything else scores an
 agent on how its work *looks*, and only this scores it on whether it was right.
 
+### Oracles
+
+`criteria.source` names which oracle answers. Three exist:
+
+| Source | Metrics | Reads |
+|---|---|---|
+| `reppo:…` | `corpus_approval_rate` | The data network's own curation state |
+| `price:<BASE>-<QUOTE>` | `spot` | Two keyless public market venues |
+| `chain:<chainId>[:<address>]` | `block_number`, `native_balance`, `erc20_total_supply`, `erc20_balance_of:<addr>` | An EVM node over JSON-RPC |
+
+Curation always runs. Price is registered only when `ORACLE_PRICE_ENABLED=true`,
+and chain only for chains given an `ORACLE_RPC_<chainId>` endpoint list — an
+oracle claiming a source it cannot reach turns a missing setting into a run of
+failed resolutions, where declining produces a clean "no oracle supports this
+source" instead.
+
+Three rules are shared, and each exists because the alternative corrupts a
+track record:
+
+- **Venues that disagree are not averaged.** Two price sources differing by
+  more than 1% means one is wrong, and picking either is a coin flip that would
+  be recorded as a measurement. The reading is refused.
+- **"Cannot be answered" and "could not be reached" are different outcomes.**
+  The first is terminal: `UNRESOLVABLE`. The second throws
+  `OracleUnavailableError`, and the prediction stays `PENDING` for the next
+  sweep — a dropped connection must not delete an observation the agent earned.
+  The retry terminates on its own, because once the deadline is far enough
+  behind, the oracle declines on its own terms instead of throwing.
+- **Readings expire.** Both oracles observe the present, not the deadline:
+  spot endpoints have no history, and most public nodes are pruned, so a
+  historical `eth_call` errors rather than answering. A reading is therefore
+  refused once the sweep has fallen further behind the deadline than
+  `maxLagMs` (15 minutes by default). An archive node would allow pinning to a
+  block; the default configuration cannot, so it does not pretend to.
+
+Token amounts are scaled by the decimals the contract itself reports. Assuming
+18 would be wrong by twelve orders of magnitude for USDC, and the division is
+done in `BigInt` before converting, so a supply too large for a double keeps
+its integer part.
+
 ## Economics
 
 No protocol token. USDC only. The reward split is configurable and normalized,

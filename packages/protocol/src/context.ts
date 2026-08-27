@@ -4,6 +4,7 @@ import { ConsensusEngine } from "@averis/consensus";
 import { AgentSelector, EvaluationEngine, ReputationEngine } from "@averis/reputation";
 import { createQueueDriver, type QueueDriver } from "@averis/queue";
 import { createReppoProvider, withFixtureFallback } from "@averis/reppo-adapter";
+import { createTracer, type Tracer } from "@averis/tracing";
 import type { DataProvider } from "@averis/types";
 import { PrismaSpendLedger } from "./ledger";
 
@@ -25,6 +26,11 @@ export interface ProtocolContext {
   selector: AgentSelector;
   budget: BudgetGuard;
   policy: BudgetPolicy;
+  /**
+   * Spans for this process. Records nothing unless tracing is configured, so
+   * call sites can use it unconditionally.
+   */
+  tracer: Tracer;
   env: NodeJS.ProcessEnv;
   logger: Logger;
 }
@@ -79,6 +85,7 @@ export function createContext(options: ContextOptions = {}): ProtocolContext {
     selector: new AgentSelector(),
     budget: new BudgetGuard(new PrismaSpendLedger(), policy),
     policy,
+    tracer: createTracer(env, env["OTEL_SERVICE_NAME"] ?? "averis"),
     env,
     logger,
     ...options.overrides,

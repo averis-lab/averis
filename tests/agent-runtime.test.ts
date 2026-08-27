@@ -4,6 +4,7 @@ import {
   DEFAULT_TOOLS,
   EvidenceCollector,
   MockProvider,
+  providerIsConfigured,
   runAgent,
   createHttpTool,
 } from "@averis/agent-runtime";
@@ -154,5 +155,45 @@ describe("http tool guardrails", () => {
     for (const host of ["https://127.0.0.1", "https://10.0.0.5", "https://192.168.1.1", "https://169.254.169.254"]) {
       await expect(tool.execute({ url: host }, ctx)).rejects.toThrow(/private address/);
     }
+  });
+});
+
+
+/**
+ * The gate the selector uses to drop an agent before a budget is reserved.
+ *
+ * It matters that this is exact rather than permissive: the reservation is
+ * deliberately *kept* when work throws, so an agent admitted here without a
+ * key spends a job's allowance to reach an error the runtime could have seen
+ * coming.
+ */
+describe("providerIsConfigured", () => {
+  it("always admits the deterministic provider", () => {
+    expect(providerIsConfigured("mock", {})).toBe(true);
+    expect(providerIsConfigured("MOCK", {})).toBe(true);
+  });
+
+  it("requires a key for each real provider", () => {
+    expect(providerIsConfigured("anthropic", {})).toBe(false);
+    expect(providerIsConfigured("anthropic", { ANTHROPIC_API_KEY: "k" })).toBe(true);
+    expect(providerIsConfigured("anthropic", { ANTHROPIC_AUTH_TOKEN: "t" })).toBe(true);
+
+    expect(providerIsConfigured("openai", {})).toBe(false);
+    expect(providerIsConfigured("openai", { OPENAI_API_KEY: "k" })).toBe(true);
+
+    expect(providerIsConfigured("gemini", {})).toBe(false);
+    expect(providerIsConfigured("gemini", { GEMINI_API_KEY: "k" })).toBe(true);
+    expect(providerIsConfigured("gemini", { GOOGLE_GENERATIVE_AI_API_KEY: "k" })).toBe(true);
+  });
+
+  it("does not admit a provider it cannot build", () => {
+    // A typo in the registry must not reach execution: createLLMProvider
+    // throws on an unknown name, and that throw would land after the reserve.
+    expect(providerIsConfigured("anthropc", { ANTHROPIC_API_KEY: "k" })).toBe(false);
+    expect(providerIsConfigured("", {})).toBe(false);
+  });
+
+  it("treats another provider's key as no key at all", () => {
+    expect(providerIsConfigured("anthropic", { OPENAI_API_KEY: "k" })).toBe(false);
   });
 });

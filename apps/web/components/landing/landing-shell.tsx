@@ -3,6 +3,7 @@
 import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import styles from "@/app/(landing)/landing.module.css";
 import { SiteNav } from "@/components/site-nav/site-nav";
+import { ContractAddress } from "@/components/landing/contract-address";
 
 /**
  * The page frame: palette, backdrop, hero, and whatever sections are passed as
@@ -122,22 +123,29 @@ export function LandingShell({
             */}
             <div className={styles.heroCopy}>
               <div className={styles.heroLead}>
-                <span
-                  className={`${styles.badge} ${styles.appear} ${styles.appearPop}`}
-                  style={delay("0.22s")}
-                >
-                  <svg
-                    className={styles.badgeStar}
-                    width="18"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="#ffffff"
-                    aria-hidden="true"
+                <div className={styles.heroMeta}>
+                  <span
+                    className={`${styles.badge} ${styles.appear} ${styles.appearPop}`}
+                    style={delay("0.22s")}
                   >
-                    <path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z" />
-                  </svg>
-                  Accountability layer
-                </span>
+                    <svg
+                      className={styles.badgeStar}
+                      width="18"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="#ffffff"
+                      aria-hidden="true"
+                    >
+                      <path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z" />
+                    </svg>
+                    Accountability layer
+                  </span>
+
+                  <ContractAddress
+                    className={`${styles.appear} ${styles.appearSoft}`}
+                    style={delay("0.34s")}
+                  />
+                </div>
 
                 <h1 className={styles.headline}>
                   <span

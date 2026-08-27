@@ -34,6 +34,7 @@ export default defineConfig({
     alias: {
       "@averis/types": pkg("types"),
       "@averis/db": pkg("db"),
+      "@averis/tracing": pkg("tracing"),
       "@averis/queue": pkg("queue"),
       "@averis/reppo-adapter": pkg("reppo-adapter"),
       "@averis/agent-runtime": pkg("agent-runtime"),

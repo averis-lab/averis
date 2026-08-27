@@ -28,8 +28,9 @@ The adapter is the only place that knows this.
 
 ## Endpoints used
 
-Only the **public, unauthenticated** read surface. The intelligence layer never
-needs custody of a user's Privy session.
+The adapter reads and never writes. With no credential configured it uses the
+**public, unauthenticated** surface alone — the default, and the whole
+behaviour of the reference deployment.
 
 | Method | Path | Used for |
 |---|---|---|
@@ -40,9 +41,63 @@ needs custody of a user's Privy session.
 
 Base URL: `https://reppo.ai/api/v1` (`REPPO_API_BASE_URL`).
 
-Authenticated `/me/*` endpoints (publishing, minting, voting) are **not** used.
-`REPPO_PRIVY_TOKEN` and `REPPO_AGENT_API_KEY` exist in the adapter for future
-write flows and are unset by default.
+## Authenticated reads
+
+`/public/subnets` lists only **active** datanets, so a datanet that is
+permissioned or still unpublished appears nowhere on the public surface. Set
+`REPPO_PRIVY_TOKEN` (the documented Privy session cookie) or
+`REPPO_AGENT_API_KEY` and the adapter additionally reads:
+
+| Method | Path | Used for |
+|---|---|---|
+| GET | `/me/subnets` | Owned datanets, including unpublished ones |
+| GET | `/me/subnets/{id}` | Datanet detail when the public read 404s |
+| GET | `/me/pods` | Owned pods, filtered locally per datanet |
+| GET | `/me/pods/{podId}` | Single item lookup when the public read 404s |
+
+Every one of these is behind a credential check, so an unconfigured deployment
+issues exactly the requests it issued before this existed.
+
+Merge rules, and why they are what they are:
+
+- **Owned datanets are listed first, not appended.** They exist nowhere else in
+  the response, so trailing them behind a full page of public results would let
+  `limit` silently drop the only rows the credential was configured to reach.
+- **`/me/*` has no documented `search`,** so the caller's term is applied
+  locally rather than ignored.
+- **The datanet filter still applies.** `/me/pods` returns pods across every
+  datanet at once, so a datanet-scoped read filters them the same way it
+  already filters the advisory `filters[subnet]` response.
+
+### What this does not reach
+
+`/me/*` is scoped to the **identity**, not to a datanet: it returns the
+datanets that identity owns and the pods it created. The documented API exposes
+no "every pod in datanet X" read for a datanet the credential does not own, so
+a permissioned datanet is readable to the extent the configured identity owns
+it — not in general. An unminted draft also carries no curation votes, so it
+lands on the neutral 0.5 prior rather than arriving weighted as good evidence
+merely because it is private.
+
+The credential is also still **process-wide**, read from the environment at the
+composition root. Per-tenant custody of Reppo credentials is a separate piece of
+work; `ReppoHttpProvider` takes its credential as constructor config precisely
+so that becomes a wiring change rather than a rewrite.
+
+Unlike the public schemas, these envelopes were **not verified against live
+responses** — that needs a Privy session for a real account. They accept either
+the documented `{"data": {"subnets": [...]}}` shape or a bare `{"data": [...]}`
+array and degrade to an empty list instead of throwing.
+
+### A rejected credential does not degrade
+
+`ReppoAuthError` (401/403) is deliberately distinct from every other upstream
+failure, and `withFixtureFallback` rethrows it instead of recovering. The
+fixtures are recordings of the *public* surface, so answering an access failure
+with them would hand back public data dressed as the permissioned corpus, and
+it would surface as a thin result rather than as the misconfiguration it is.
+
+Write flows (publishing, minting, voting) remain unused.
 
 ## Undocumented behaviour found by probing
 
@@ -114,7 +169,9 @@ drift fails the tests rather than passing against a fiction. Set
 `REPPO_PROVIDER=fixture` for air-gapped runs and CI.
 
 `withFixtureFallback` additionally degrades to fixtures when the live API is
-unreachable, so a transient upstream outage does not fail every in-flight job.
+unreachable, so a transient upstream outage does not fail every in-flight job —
+with the one exception above: a rejected credential is raised, not papered
+over.
 
 ## Settlement note
 

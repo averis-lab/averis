@@ -4,5 +4,6 @@ export * from "./job-engine";
 export * from "./execution";
 export * from "./pipeline";
 export * from "./resolution";
+export * from "./oracles";
 export * from "./settlement";
 export * from "./explain";

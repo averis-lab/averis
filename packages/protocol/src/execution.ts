@@ -2,6 +2,7 @@ import { Prisma, prisma, toDecimalInput, toNumber } from "@averis/db";
 import { BudgetExceededError } from "@averis/budget";
 import {
   createLLMProvider,
+  providerIsConfigured,
   runAgent,
   type AgentRunResult,
   type DatanetRubric,
@@ -17,6 +18,13 @@ import { JobEngine, JobEngineError } from "./job-engine";
  * much only delays work, whereas reserving too little defeats the guard.
  */
 const ESTIMATED_AGENT_COST_USD = 0.35;
+
+/**
+ * Cached-item writes allowed in flight at once, per agent run. Deliberately
+ * well under `DATABASE_POOL_MAX`: these run alongside the interactive
+ * transactions of every other agent in the cohort.
+ */
+const DATA_ITEM_WRITE_CONCURRENCY = 8;
 
 export interface RunJobResult {
   jobId: string;
@@ -34,6 +42,8 @@ export interface RunJobResult {
  */
 export class ExecutionPipeline {
   private readonly engine: JobEngine;
+  /** Resolved once: a data source's name → id mapping never changes. */
+  private sourceId: string | null = null;
 
   constructor(private readonly ctx: ProtocolContext) {
     this.engine = new JobEngine(ctx);
@@ -70,7 +80,32 @@ export class ExecutionPipeline {
     await this.snapshotDatanets(datanets);
 
     // ─── Agent selection ────────────────────────────────────────────────────
-    const candidates = await this.engine.candidates();
+    //
+    // Agents whose provider has no credentials are dropped *before* selection.
+    // Creating the provider is the first thing the run does, and by then the
+    // budget is already reserved — and a reservation is deliberately kept on
+    // failure, so a missing key would burn a job's allowance without a single
+    // model call ever being made. Failing here costs nothing and says why.
+    const allCandidates = await this.engine.candidates();
+    const candidates = allCandidates.filter((agent) =>
+      providerIsConfigured(agent.modelProvider, this.ctx.env),
+    );
+    const unconfigured = allCandidates.length - candidates.length;
+
+    if (unconfigured > 0) {
+      this.ctx.logger.warn("agents skipped: provider not configured", {
+        jobId,
+        skipped: unconfigured,
+        providers: [
+          ...new Set(
+            allCandidates
+              .filter((agent) => !providerIsConfigured(agent.modelProvider, this.ctx.env))
+              .map((agent) => agent.modelProvider),
+          ),
+        ],
+      });
+    }
+
     const budgetPerAgent =
       job.requiredAgents > 0 ? toNumber(job.budget) / job.requiredAgents : toNumber(job.budget);
 
@@ -81,9 +116,18 @@ export class ExecutionPipeline {
     });
 
     if (selected.length === 0) {
-      await this.engine.fail(jobId, "no agent matched the required capabilities", {
+      // Two different problems with two different fixes. Reporting the second
+      // as the first sends an operator to check capability tags when what is
+      // actually missing is an API key.
+      const reason =
+        candidates.length === 0 && unconfigured > 0
+          ? "no agent has usable model credentials"
+          : "no agent matched the required capabilities";
+
+      await this.engine.fail(jobId, reason, {
         requiredCapabilities: job.requiredCapabilities,
         candidates: candidates.length,
+        skippedForCredentials: unconfigured,
       });
       return { jobId, assignments: 0, succeeded: 0, failed: 0 };
     }
@@ -295,6 +339,13 @@ export class ExecutionPipeline {
     assignmentId: string,
     run: AgentRunResult,
   ): Promise<void> {
+    // Cache the upstream items this run cited *before* opening the
+    // transaction. They belong to the data-source cache rather than to the
+    // job, they are idempotent, and a dozen extra round trips held inside an
+    // interactive transaction is exactly how this codebase has produced
+    // "Transaction already closed" under load before.
+    const dataItemIds = await this.cacheDataItems(run.evidence);
+
     await prisma.$transaction(async (tx) => {
       // Evidence is deduplicated per job by content hash, so two agents
       // citing the same upstream item share one provenance row.
@@ -317,6 +368,7 @@ export class ExecutionPipeline {
             metadata: item.metadata as object,
             reliability: item.reliability,
             retrievedAt: item.timestamp,
+            dataItemId: dataItemIds.get(item.source) ?? null,
           })),
           skipDuplicates: true,
         });
@@ -430,17 +482,14 @@ export class ExecutionPipeline {
   private async snapshotDatanets(datanets: Datanet[]): Promise<void> {
     if (datanets.length === 0) return;
 
-    const source = await prisma.dataSource.findUnique({
-      where: { name: this.ctx.data.name },
-      select: { id: true },
-    });
-    if (!source) return;
+    const sourceId = await this.dataSourceId();
+    if (!sourceId) return;
 
     for (const datanet of datanets) {
       await prisma.datanet.upsert({
-        where: { dataSourceId_externalId: { dataSourceId: source.id, externalId: datanet.id } },
+        where: { dataSourceId_externalId: { dataSourceId: sourceId, externalId: datanet.id } },
         create: {
-          dataSourceId: source.id,
+          dataSourceId: sourceId,
           externalId: datanet.id,
           name: datanet.name,
           description: datanet.description,
@@ -459,6 +508,111 @@ export class ExecutionPipeline {
         },
       });
     }
+  }
+
+  /** The configured data source's local id, or null if it was never seeded. */
+  private async dataSourceId(): Promise<string | null> {
+    if (this.sourceId) return this.sourceId;
+
+    const source = await prisma.dataSource.findUnique({
+      where: { name: this.ctx.data.name },
+      select: { id: true },
+    });
+    // Only a hit is memoised: a source seeded after the first miss must still
+    // be found, rather than this pipeline caching "absent" for its lifetime.
+    if (source) this.sourceId = source.id;
+    return source?.id ?? null;
+  }
+
+  /**
+   * Caches the upstream items this run cited and returns their local ids,
+   * keyed by evidence locator.
+   *
+   * Evidence keeps an immutable snapshot of what a pod looked like when it was
+   * read — that is what an old job's score has to be defensible against. The
+   * `DataItem` row is the *identity* behind that snapshot, so two jobs citing
+   * the same pod point at one row and "what else drew on this pod", or "how
+   * has its curation moved since we used it", become answerable. Without the
+   * link, provenance is a string with nothing to join it to.
+   *
+   * Only pods are cached. A datanet listing is not an item, and evidence from
+   * any other tool has no upstream row to point at; both keep a null link
+   * rather than getting a synthetic one.
+   */
+  private async cacheDataItems(evidence: AgentRunResult["evidence"]): Promise<Map<string, string>> {
+    const byLocator = new Map<string, string>();
+
+    const pods = evidence.filter(
+      (item) => item.type === "REPPO_POD" && typeof item.metadata["externalId"] === "string",
+    );
+    if (pods.length === 0) return byLocator;
+
+    const sourceId = await this.dataSourceId();
+    if (!sourceId) return byLocator;
+
+    // Evidence carries the *upstream* datanet id; the foreign key wants the
+    // local snapshot row that `snapshotDatanets` wrote when the job started.
+    // A pod whose datanet is somehow not in scope keeps a null link — the item
+    // is still real provenance, it just has no local parent to hang from.
+    const externalDatanetIds = [
+      ...new Set(pods.map((item) => asString(item.metadata["datanetId"])).filter(isPresent)),
+    ];
+    const datanetRows =
+      externalDatanetIds.length > 0
+        ? await prisma.datanet.findMany({
+            where: { dataSourceId: sourceId, externalId: { in: externalDatanetIds } },
+            select: { id: true, externalId: true },
+          })
+        : [];
+    const localDatanetId = new Map(datanetRows.map((row) => [row.externalId, row.id]));
+
+    // Bounded rather than one flat `Promise.all`: an agent can cite dozens of
+    // pods and a cohort runs three of these at once, which is enough open
+    // requests to starve the connection pool — and what starves there is the
+    // *interactive transaction* another agent is holding open in `persist`,
+    // which dies as "Transaction already closed" nowhere near this code.
+    for (const batch of chunk(pods, DATA_ITEM_WRITE_CONCURRENCY)) {
+      await Promise.all(
+        batch.map(async (item) => {
+          const externalId = asString(item.metadata["externalId"]);
+          if (!externalId) return;
+
+          const externalDatanetId = asString(item.metadata["datanetId"]);
+          const values = {
+            datanetId: externalDatanetId ? (localDatanetId.get(externalDatanetId) ?? null) : null,
+            title: item.title ?? externalId,
+            content: item.content?.slice(0, 20_000) ?? null,
+            url: asString(item.metadata["url"]),
+            // The upstream curation score, the same number the evidence row
+            // carries as its reliability. Never the agent's opinion of the item.
+            qualityScore: item.reliability,
+            curation: {
+              upVotes: asNumber(item.metadata["upVotes"], 0),
+              downVotes: asNumber(item.metadata["downVotes"], 0),
+              approvalRate: asNumber(item.metadata["approvalRate"], 0.5),
+              epoch: asNumber(item.metadata["epoch"], null),
+            },
+            publishedAt: asDate(item.metadata["publishedAt"]),
+          };
+
+          // Unlike evidence, this is an upsert rather than an insert-or-ignore:
+          // agents in a cohort routinely retrieve the same pod, and the second
+          // one to arrive should refresh the cached curation instead of being
+          // dropped. It is safe under that parallelism because the compound
+          // unique is the arbiter — one statement, not a check followed by a
+          // write — and both writers are copying the same upstream row anyway.
+          const row = await prisma.dataItem.upsert({
+            where: { dataSourceId_externalId: { dataSourceId: sourceId, externalId } },
+            create: { dataSourceId: sourceId, externalId, ...values },
+            update: { ...values, syncedAt: new Date() },
+            select: { id: true },
+          });
+          byLocator.set(item.source, row.id);
+        }),
+      );
+    }
+
+    return byLocator;
   }
 
   private textMatch<T extends { name: string; description: string }>(
@@ -481,6 +635,36 @@ export class ExecutionPipeline {
 
     return scored.length > 0 ? scored.map((s) => s.d) : datanets.slice(0, 5);
   }
+}
+
+/**
+ * Evidence metadata is an open `Record<string, unknown>` by design — a tool can
+ * attach whatever it retrieved. Reading it back into typed columns therefore
+ * coerces rather than casts: a malformed value falls back instead of throwing
+ * mid-persist and costing the agent its entire output.
+ */
+const asString = (value: unknown): string | null =>
+  typeof value === "string" && value.length > 0 ? value : null;
+
+function asNumber(value: unknown, fallback: number): number;
+function asNumber(value: unknown, fallback: null): number | null;
+function asNumber(value: unknown, fallback: number | null): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function asDate(value: unknown): Date | null {
+  const raw = asString(value);
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+const isPresent = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size));
+  return batches;
 }
 
 export type { CreateJob };

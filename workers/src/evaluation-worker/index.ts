@@ -1,4 +1,5 @@
 import { QUEUES, type Subscription } from "@averis/queue";
+import { traced } from "../traced";
 import { EvaluationStage, JobEngine, type ProtocolContext } from "@averis/protocol";
 
 /** Scores every submitted output, then hands the job to consensus. */
@@ -8,11 +9,11 @@ export function startEvaluationWorker(ctx: ProtocolContext): Subscription {
 
   return ctx.queue.process<{ jobId: string }>(
     QUEUES.evaluation,
-    async (message) => {
+    traced(ctx, QUEUES.evaluation, async (message) => {
       const { jobId } = message.payload;
       const scored = await stage.run(jobId);
       ctx.logger.info("evaluation complete", { jobId, outputsScored: scored });
-    },
+    }),
     {
       concurrency: 4,
       onFailed: async (message, error) => {

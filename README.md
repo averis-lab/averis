@@ -591,3 +591,4 @@ a deploy target.
 - [Operator](docs/operator.md) — autonomy, strategy, budget guard, transaction safety
 - [Automation](docs/automation.md) — trading policy, gates, breaker, why there is no live driver
 - [Reppo integration](docs/reppo-integration.md) — verified endpoints, curation → evidence weight
+- [Tracing](docs/tracing.md) — one trace across the gateway, the queue and the workers

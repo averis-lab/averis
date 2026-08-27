@@ -1,4 +1,5 @@
 import { QUEUES, type Subscription } from "@averis/queue";
+import { traced } from "../traced";
 import { ConsensusStage, JobEngine, type ProtocolContext } from "@averis/protocol";
 
 /** Merges scored outputs into the job's final intelligence. */
@@ -8,11 +9,11 @@ export function startConsensusWorker(ctx: ProtocolContext): Subscription {
 
   return ctx.queue.process<{ jobId: string }>(
     QUEUES.consensus,
-    async (message) => {
+    traced(ctx, QUEUES.consensus, async (message) => {
       const { jobId } = message.payload;
       await stage.run(jobId);
       ctx.logger.info("consensus complete", { jobId });
-    },
+    }),
     {
       concurrency: 2,
       onFailed: async (message, error) => {

@@ -1,7 +1,7 @@
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
-import { pingDatabase, prisma } from "@averis/db";
+import { pingDatabase, prisma, toNumber } from "@averis/db";
 import { QUEUES } from "@averis/queue";
 import type { ProtocolContext } from "@averis/protocol";
 import { registerAuth, extractKey, requesterScope } from "./auth";
@@ -12,6 +12,7 @@ import { registerDatanetRoutes } from "./routes/datanets";
 import { registerAutomationRoutes } from "./routes/automations";
 import { isPaidRoute, registerPayments, resolvePaymentConfig } from "./payments";
 import { createWalletVerifier, resolvePrivyConfig } from "./privy";
+import { registerTracing } from "./tracing";
 
 export interface ServerOptions {
   ctx: ProtocolContext;
@@ -29,6 +30,10 @@ export async function buildServer({ ctx }: ServerOptions): Promise<FastifyInstan
     trustProxy: true,
     bodyLimit: 1_000_000,
   });
+
+  // Registered first, so every later hook, the paywall and the error handler
+  // all run inside the request span rather than beside it.
+  registerTracing(app, ctx.tracer);
 
   await app.register(cors, {
     origin: (ctx.env["CORS_ORIGINS"] ?? "*").split(",").map((o) => o.trim()),
@@ -118,16 +123,52 @@ export async function buildServer({ ctx }: ServerOptions): Promise<FastifyInstan
   // Counts follow the same tenancy rule as the reads they summarize: an
   // account sees its own jobs and their evidence. The agent registry is shared
   // by every tenant, so its count is not scoped.
+  /**
+   * Counts, and what the runs actually cost.
+   *
+   * The cost and latency figures come from `AgentOutput`, which records them
+   * per run — so they are measured, never estimated from a price list. The
+   * failure rate is over *terminal* jobs only: a job still queued has not
+   * failed, and counting it as a success in waiting flatters the number.
+   */
   app.get("/v1/stats", async (request, reply) => {
     const scope = requesterScope(request.principal);
-    const [jobs, resolved, agents, evidence] = await Promise.all([
+    const outputScope = scope.requesterId ? { job: scope } : {};
+
+    const [jobs, resolved, failed, agents, evidence, runs] = await Promise.all([
       prisma.job.count({ where: scope }),
       prisma.job.count({ where: { ...scope, status: "RESOLVED" } }),
+      prisma.job.count({ where: { ...scope, status: "FAILED" } }),
       prisma.agent.count({ where: { status: "ACTIVE" } }),
       prisma.evidence.count(scope.requesterId ? { where: { job: scope } } : undefined),
+      prisma.agentOutput.aggregate({
+        where: outputScope,
+        _count: { _all: true },
+        _sum: { costUsd: true },
+        _avg: { durationMs: true },
+        _max: { durationMs: true },
+      }),
     ]);
+
+    const terminal = resolved + failed;
+
     return reply.send({
-      data: { jobs, resolved, activeAgents: agents, evidenceItems: evidence },
+      data: {
+        jobs,
+        resolved,
+        activeAgents: agents,
+        evidenceItems: evidence,
+        metrics: {
+          agentRuns: runs._count._all,
+          costUsd: toNumber(runs._sum.costUsd ?? 0),
+          avgDurationMs: Math.round(runs._avg.durationMs ?? 0),
+          maxDurationMs: runs._max.durationMs ?? 0,
+          failedJobs: failed,
+          // Null rather than 0 when nothing has finished: a rate over an empty
+          // denominator is not "zero failures", it is not yet a rate.
+          failureRate: terminal > 0 ? failed / terminal : null,
+        },
+      },
     });
   });
 

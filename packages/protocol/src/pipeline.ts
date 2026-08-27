@@ -113,8 +113,15 @@ export class EvaluationStage {
 
     // Score against the standards the job's own datanets publish, not a
     // generic yardstick. Falls back to neutral when they publish none.
+    // Scoped to the configured source: `externalId` is unique only *within* a
+    // data source, so an unqualified lookup would start scoring a job against
+    // another network's rubric the moment a second provider exists — and the
+    // symptom would be a plausible-looking alignment score, not an error.
     const datanetRows = await prisma.datanet.findMany({
-      where: { externalId: { in: job.datanetIds } },
+      where: {
+        dataSource: { name: this.ctx.data.name },
+        externalId: { in: job.datanetIds },
+      },
       select: { rubric: true },
     });
     const rubricTerms = extractRubricTerms(

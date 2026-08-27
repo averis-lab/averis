@@ -8,6 +8,8 @@ import {
   type QueueName,
   type Subscription,
 } from "./types";
+import { parseTraceparent, withContext } from "@averis/tracing";
+import { captureTraceparent } from "./trace";
 
 interface Pending {
   message: QueueMessage;
@@ -52,7 +54,7 @@ export class MemoryQueueDriver implements QueueDriver {
     if (dedupeId) this.seenIds.add(dedupeId);
 
     const pending: Pending = {
-      message: { id, name, payload, attempt: 1 },
+      message: { id, name, payload, attempt: 1, traceparent: captureTraceparent() },
       attempts: options.attempts ?? 3,
       backoffMs: options.backoffMs ?? 250,
     };
@@ -135,7 +137,12 @@ export class MemoryQueueDriver implements QueueDriver {
 
       void (async () => {
         try {
-          await registration.handler(pending.message);
+          // Restored explicitly rather than relied on to be inherited: the
+          // retry and delay paths run from a timer, where the enqueuing
+          // async context is long gone.
+          await withContext(parseTraceparent(pending.message.traceparent), () =>
+            registration.handler(pending.message),
+          );
         } catch (error) {
           const err = error instanceof Error ? error : new Error(String(error));
 

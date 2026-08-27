@@ -11,7 +11,21 @@ export default async function Home() {
     attempt(() => api.listJobs({ limit: 12 })),
     attempt(() =>
       fetchJson<{
-        data: { jobs: number; resolved: number; activeAgents: number; evidenceItems: number };
+        data: {
+          jobs: number;
+          resolved: number;
+          activeAgents: number;
+          evidenceItems: number;
+          metrics: {
+            agentRuns: number;
+            costUsd: number;
+            avgDurationMs: number;
+            maxDurationMs: number;
+            failedJobs: number;
+            /** Null until a job has actually finished; see the endpoint. */
+            failureRate: number | null;
+          };
+        };
       }>("/v1/stats"),
     ),
   ]);
@@ -30,26 +44,31 @@ export default async function Home() {
       <Header />
 
       {stats.ok ? (
-        <StatStrip
-          items={[
-            { label: "Jobs", value: String(stats.value.data.jobs), sub: "created" },
-            {
-              label: "Resolved",
-              value: String(stats.value.data.resolved),
-              sub: "reached consensus",
-            },
-            {
-              label: "Active agents",
-              value: String(stats.value.data.activeAgents),
-              sub: "available to a cohort",
-            },
-            {
-              label: "Evidence",
-              value: String(stats.value.data.evidenceItems),
-              sub: "provenance records",
-            },
-          ]}
-        />
+        <div className="space-y-3">
+          <StatStrip
+            items={[
+              { label: "Jobs", value: String(stats.value.data.jobs), sub: "created" },
+              {
+                label: "Resolved",
+                value: String(stats.value.data.resolved),
+                sub: "reached consensus",
+              },
+              {
+                label: "Active agents",
+                value: String(stats.value.data.activeAgents),
+                sub: "available to a cohort",
+              },
+              {
+                label: "Evidence",
+                value: String(stats.value.data.evidenceItems),
+                sub: "provenance records",
+              },
+            ]}
+          />
+
+          {/* Measured per run, never estimated from a price list. */}
+          <StatStrip items={runMetrics(stats.value.data.metrics)} />
+        </div>
       ) : null}
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:gap-8">
@@ -115,6 +134,54 @@ export default async function Home() {
       </div>
     </div>
   );
+}
+
+/**
+ * The run metrics, formatted for reading rather than for precision.
+ *
+ * Every figure carries what it is over, because each has a different
+ * denominator: cost and latency are per agent run, the failure rate is over
+ * terminal jobs only. A row of bare numbers would invite the reader to compare
+ * four things that are not on the same base.
+ */
+function runMetrics(m: {
+  agentRuns: number;
+  costUsd: number;
+  avgDurationMs: number;
+  maxDurationMs: number;
+  failedJobs: number;
+  failureRate: number | null;
+}): { label: string; value: string; sub?: string }[] {
+  return [
+    {
+      label: "Spend",
+      value: m.costUsd > 0 ? `$${m.costUsd.toFixed(2)}` : "$0.00",
+      sub: "measured, across all runs",
+    },
+    {
+      label: "Agent runs",
+      value: String(m.agentRuns),
+      sub: "completed analyses",
+    },
+    {
+      label: "Avg latency",
+      value: m.avgDurationMs > 0 ? formatMs(m.avgDurationMs) : "—",
+      sub: m.maxDurationMs > 0 ? `slowest ${formatMs(m.maxDurationMs)}` : "per agent run",
+    },
+    {
+      label: "Failure rate",
+      // A rate over nothing is not zero; it is not yet a rate.
+      value: m.failureRate === null ? "—" : `${(m.failureRate * 100).toFixed(0)}%`,
+      sub:
+        m.failureRate === null
+          ? "no job has finished yet"
+          : `${m.failedJobs} of the jobs that finished`,
+    },
+  ];
+}
+
+function formatMs(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`;
 }
 
 function Dot() {

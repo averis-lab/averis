@@ -27,6 +27,8 @@
       "@averis/types/*": ["./packages/types/src/*"],
       "@averis/db": ["./packages/db/src/index.ts"],
       "@averis/db/*": ["./packages/db/src/*"],
+      "@averis/tracing": ["./packages/tracing/src/index.ts"],
+      "@averis/tracing/*": ["./packages/tracing/src/*"],
       "@averis/queue": ["./packages/queue/src/index.ts"],
       "@averis/queue/*": ["./packages/queue/src/*"],
       "@averis/reppo-adapter": ["./packages/reppo-adapter/src/index.ts"],

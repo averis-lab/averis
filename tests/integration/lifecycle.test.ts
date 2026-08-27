@@ -139,6 +139,66 @@ describe("evidence and provenance", () => {
     expect(new Set(evidence.map((e) => e.source)).size).toBe(evidence.length);
   });
 
+  it("links pod evidence to a cached data item, one row per upstream pod", async () => {
+    const { jobId } = await run();
+
+    const evidence = await prisma.evidence.findMany({
+      where: { jobId, type: "REPPO_POD" },
+      select: { source: true, reliability: true, dataItem: true },
+    });
+    expect(evidence.length).toBeGreaterThan(0);
+
+    // Provenance has to be joinable, not just a string. Before this the FK
+    // existed in the schema and nothing ever wrote it.
+    for (const row of evidence) {
+      expect(row.dataItem).not.toBeNull();
+      expect(row.source).toBe(`reppo://pod/${row.dataItem!.externalId}`);
+      expect(row.dataItem!.qualityScore).toBeCloseTo(row.reliability, 6);
+    }
+
+    // Three agents retrieve overlapping pods in parallel and each upserts the
+    // cache. The compound unique is what keeps that from either duplicating
+    // rows or losing a writer to a constraint violation.
+    const items = await prisma.dataItem.findMany({ select: { externalId: true, datanetId: true } });
+    expect(new Set(items.map((i) => i.externalId)).size).toBe(items.length);
+
+    // Every cached pod hangs off a datanet the job actually scoped itself to.
+    const job = await prisma.job.findUniqueOrThrow({
+      where: { id: jobId },
+      select: { datanetIds: true },
+    });
+    const scoped = await prisma.datanet.findMany({
+      where: { externalId: { in: job.datanetIds } },
+      select: { id: true },
+    });
+    const scopedIds = new Set(scoped.map((d) => d.id));
+    for (const item of items) {
+      expect(item.datanetId).not.toBeNull();
+      expect(scopedIds.has(item.datanetId!)).toBe(true);
+    }
+  });
+
+  it("keeps one data item across jobs that cite the same pod", async () => {
+    const first = await run();
+    const afterFirst = await prisma.dataItem.findMany({ select: { id: true, externalId: true } });
+    expect(afterFirst.length).toBeGreaterThan(0);
+
+    if (harness) {
+      await harness.stop();
+      harness = null;
+    }
+    const second = await run();
+    expect(second.jobId).not.toBe(first.jobId);
+
+    // The cache is keyed on upstream identity, so a second job citing the same
+    // pods reuses the rows rather than growing a parallel set of them.
+    const afterSecond = await prisma.dataItem.findMany({ select: { id: true, externalId: true } });
+    expect(new Set(afterSecond.map((i) => i.externalId)).size).toBe(afterSecond.length);
+    for (const row of afterFirst) {
+      expect(afterSecond.find((i) => i.externalId === row.externalId)?.id).toBe(row.id);
+    }
+  });
+
   it("links every supported claim to evidence that was actually stored", async () => {
     const { jobId } = await run();
 

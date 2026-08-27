@@ -4,15 +4,19 @@
   "private": true,
   "type": "module",
   "description": "Protocol core: job engine, lifecycle, execution pipeline, reward engine.",
-  "exports": { ".": "./src/index.ts", "./*": "./src/*.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "dependencies": {
-    "@averis/types": "*",
-    "@averis/db": "*",
-    "@averis/queue": "*",
+    "@averis/agent-runtime": "*",
     "@averis/budget": "*",
     "@averis/consensus": "*",
+    "@averis/db": "*",
+    "@averis/queue": "*",
+    "@averis/reppo-adapter": "*",
     "@averis/reputation": "*",
-    "@averis/agent-runtime": "*",
-    "@averis/reppo-adapter": "*"
+    "@averis/tracing": "*",
+    "@averis/types": "*"
   }
 }
