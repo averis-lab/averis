@@ -3,6 +3,7 @@ import {
   ChainOracle,
   PriceOracle,
   chainEndpointsFromEnv,
+  optionalOracles,
 } from "../packages/protocol/src/oracles";
 import { OracleUnavailableError, type PendingPrediction } from "@averis/types";
 
@@ -244,5 +245,41 @@ describe("chain endpoints from the environment", () => {
     expect(
       chainEndpointsFromEnv({ ORACLE_RPC_1: "not-a-url", ORACLE_RPC_2: "" } as NodeJS.ProcessEnv),
     ).toEqual({});
+  });
+});
+
+/*
+ * Registration is centralised so the worker and the `resolve` script cannot
+ * disagree about which oracles are live. A script verifying a set production
+ * does not run is the specific way a check like that stops being worth
+ * anything.
+ */
+describe("oracle registration", () => {
+  const names = (env: NodeJS.ProcessEnv) => optionalOracles(env).map((o) => o.name);
+
+  it("registers nothing when nothing is configured", () => {
+    expect(names({} as NodeJS.ProcessEnv)).toEqual([]);
+  });
+
+  it("adds price only when explicitly enabled", () => {
+    expect(names({ ORACLE_PRICE_ENABLED: "true" } as NodeJS.ProcessEnv)).toContain("price");
+    // Anything other than an explicit opt-in leaves it out: reaching public
+    // market APIs is not something a deployment should start doing by typo.
+    expect(names({ ORACLE_PRICE_ENABLED: "1" } as NodeJS.ProcessEnv)).not.toContain("price");
+    expect(names({} as NodeJS.ProcessEnv)).not.toContain("price");
+  });
+
+  it("adds chain only once an endpoint exists for some chain", () => {
+    expect(names({ ORACLE_RPC_4663: "https://rpc.test" } as NodeJS.ProcessEnv)).toContain("chain");
+    expect(names({ ORACLE_RPC_4663: "" } as NodeJS.ProcessEnv)).not.toContain("chain");
+  });
+
+  it("registers both when everything is configured", () => {
+    expect(
+      names({
+        ORACLE_PRICE_ENABLED: "true",
+        ORACLE_RPC_4663: "https://rpc.test",
+      } as NodeJS.ProcessEnv),
+    ).toEqual(["price", "chain"]);
   });
 });

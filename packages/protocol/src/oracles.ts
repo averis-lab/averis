@@ -439,3 +439,38 @@ export function chainEndpointsFromEnv(env: NodeJS.ProcessEnv): Record<number, st
 
   return endpoints;
 }
+
+/**
+ * The optional oracles a deployment has configured.
+ *
+ * Only the ones that reach outside this protocol live here, and the split from
+ * `createOracles` is deliberate rather than cosmetic: curation needs a Prisma
+ * client, and importing one into this module would pull a database dependency
+ * into every consumer of it — including the tests that exist precisely to run
+ * without infrastructure. This half is pure, so the configuration rules below
+ * are testable on their own.
+ *
+ * Each is registered only when configured. An oracle claiming a source it
+ * cannot reach turns a missing setting into a run of failed resolutions, where
+ * leaving it out produces the correct and legible "no oracle supports this
+ * source" instead.
+ */
+export function optionalOracles(
+  env: NodeJS.ProcessEnv,
+  logger?: Logger | undefined,
+): ResolutionOracle[] {
+  const oracles: ResolutionOracle[] = [];
+
+  // Opt-in because it reaches public market APIs, which an offline or
+  // air-gapped deployment should not start doing silently.
+  if (env["ORACLE_PRICE_ENABLED"] === "true") {
+    oracles.push(new PriceOracle({ logger }));
+  }
+
+  const endpoints = chainEndpointsFromEnv(env);
+  if (Object.keys(endpoints).length > 0) {
+    oracles.push(new ChainOracle({ endpoints, logger }));
+  }
+
+  return oracles;
+}

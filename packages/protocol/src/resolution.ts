@@ -7,6 +7,7 @@ import {
   type ResolutionOracle,
 } from "@averis/types";
 import type { ProtocolContext } from "./context";
+import { optionalOracles } from "./oracles";
 
 /**
  * Resolves predictions whose deadline has passed.
@@ -168,4 +169,19 @@ export class CurationOracle implements ResolutionOracle {
 
     return null;
   }
+}
+
+/**
+ * Every oracle this deployment can answer with.
+ *
+ * One function, called by both the resolution worker and the `resolve` script,
+ * so an operator inspecting a sweep by hand sees exactly the set production
+ * runs. A tool that assembled its own list would be verifying a configuration
+ * nothing else uses, which is the specific way a check like that stops being
+ * worth anything.
+ */
+export function createOracles(ctx: ProtocolContext): ResolutionOracle[] {
+  // Curation needs no configuration: it reads the data network the protocol
+  // already talks to.
+  return [new CurationOracle(ctx), ...optionalOracles(ctx.env, ctx.logger)];
 }

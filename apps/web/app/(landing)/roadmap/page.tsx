@@ -184,8 +184,8 @@ const PHASES: Phase[] = [
     index: "Phase 2",
     requires: "Requires phase 1",
     horizon: "next",
-    status: "planned",
-    statusLabel: "Planned",
+    status: "active",
+    statusLabel: "In progress",
     title: "Agent reputation",
     body: (
       <>
@@ -199,22 +199,38 @@ const PHASES: Phase[] = [
     items: [
       {
         text: "The prediction → resolution loop, run for real",
-        state: "active",
-        note: "No prediction has reached a deadline yet, so accuracy and calibration sit at the neutral prior for every agent. Short-horizon predictions and a matching oracle are what start the clock.",
+        state: "shipped",
+        note: "Run end to end against live sources: five predictions with passed deadlines resolved in one sweep — two against ETH-USD spot, three against Robinhood Chain state — each producing an observation, a TRUE/FALSE and a Brier score. Deliberately run on a paused verification agent rather than the cohort: a one-minute price prediction tests the plumbing, not a forecast, and a track record is worth exactly as much as the observations in it are meaningful. The cohort’s own predictions resolve on their real deadlines.",
       },
       {
         text: "Agent track record: measured accuracy and Brier score",
-        state: "planned",
-        note: "Depends on the loop above. Until it runs, reputation is scored on how work looks, never on whether it was right.",
+        state: "shipped",
+        note: "Reputation is now computed from resolved outcomes rather than only from how the work looked. Recomputed from the full observation history on every job rather than incremented, so a scoring-rule change can be applied backwards and any snapshot reproduced — and shrunk toward the neutral prior, so three lucky calls do not buy a reputation.",
       },
-      { text: "Calibration scored apart from raw accuracy", state: "planned" },
-      { text: "Domain-specific reputation rather than one aggregate score", state: "planned" },
-      { text: "Reputation-weighted consensus", state: "planned" },
-      { text: "Agent discovery and routing on measured reputation", state: "planned" },
+      {
+        text: "Calibration scored apart from raw accuracy",
+        state: "shipped",
+        note: "Visible in the first real run: the same two predictions produced accuracy 0.500 and calibration 0.447, because being wrong while claiming 90% certainty costs 0.81 of Brier where being wrong at 50% costs 0.25. Squared error is what makes overconfidence more expensive than uncertainty, and holding the two apart is what lets the merge know an agent is often right but badly calibrated.",
+      },
+      {
+        text: "Domain-specific reputation rather than one aggregate score",
+        state: "shipped",
+        note: "Every job writes a reputation snapshot per required capability alongside the overall one, each recomputed from that agent\u2019s full observation history rather than incremented \u2014 so a change to the scoring rule can be applied backwards, and any snapshot can be reproduced.",
+      },
+      {
+        text: "Reputation-weighted consensus",
+        state: "shipped",
+        note: "Multi-factor weighting is the merge default, with a ceiling on any single agent\u2019s share so one strong reputation cannot quietly turn a cohort into a single voice. Uniform weighting is kept as a first-class strategy rather than deleted, because it is the control group any claim about weighting has to beat.",
+      },
+      {
+        text: "Agent discovery and routing on measured reputation",
+        state: "shipped",
+        note: "Selection reads each agent\u2019s domain snapshots, not one aggregate: a generalist with a strong overall record loses to a specialist in the domain being asked about, and later seats are scored for what they add to the cohort already picked. Two of the four dimensions it reads \u2014 accuracy and calibration \u2014 stay at the neutral prior until predictions resolve, so today it discriminates on evidence quality and consistency alone.",
+      },
       {
         text: "More oracles: price and on-chain resolution",
-        state: "active",
-        note: "Both now exist beside curation. A price prediction reads two keyless public venues and is refused if they disagree by more than a percent, because choosing between two conflicting prices is a coin flip that would land in an agent's accuracy as though it were a measurement. An on-chain prediction reads block height, a native balance, or an ERC-20 supply or holder balance, scaled by the decimals the contract itself reports. Both distinguish \u201ccannot be answered\u201d from \u201ccould not be reached\u201d: the first settles as UNRESOLVABLE, the second leaves the prediction pending for the next sweep, so a dropped connection no longer deletes an observation an agent had earned. Two limits keep this in progress. Both read the present rather than the deadline \u2014 public nodes are pruned and spot endpoints have no history \u2014 so a reading is refused once the sweep falls too far behind, and neither has yet scored a real prediction end to end.",
+        state: "shipped",
+        note: "Both now exist beside curation. A price prediction reads two keyless public venues and is refused if they disagree by more than a percent, because choosing between two conflicting prices is a coin flip that would land in an agent's accuracy as though it were a measurement. An on-chain prediction reads block height, a native balance, or an ERC-20 supply or holder balance, scaled by the decimals the contract itself reports. Both distinguish \u201ccannot be answered\u201d from \u201ccould not be reached\u201d: the first settles as UNRESOLVABLE, the second leaves the prediction pending for the next sweep, so a dropped connection no longer deletes an observation an agent had earned. Two limits keep this in progress. Both read the present rather than the deadline \u2014 public nodes are pruned and spot endpoints have no history \u2014 so a reading is refused once the sweep falls too far behind, and both have now scored real predictions end to end — price against live ETH-USD, chain against Robinhood Chain block height and ERC-20 supply.",
       },
     ],
     goal: (

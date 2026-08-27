@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "The accountability layer between evidence and decisions — turns curated Reppo Datanet data into verifiable, multi-agent intelligence.",
+  "description": "The accountability layer between evidence and decisions \u2014 turns curated Reppo Datanet data into verifiable, multi-agent intelligence.",
   "workspaces": [
     "apps/*",
     "packages/*",
@@ -35,6 +35,7 @@
     "benchmark": "tsx scripts/benchmark.ts",
     "key:create": "tsx scripts/api-key.ts",
     "settle": "tsx scripts/settle.ts",
+    "resolve": "tsx scripts/resolve.ts",
     "dev:all": "concurrently -k -n api,workers,web -c red,yellow,cyan \"npm:dev:api\" \"npm:dev:workers\" \"npm:dev\"",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:all": "npm test && npm run test:integration"
