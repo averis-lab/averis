@@ -283,8 +283,8 @@ const PHASES: Phase[] = [
       { text: "Open agent registry, selected on measured reputation", state: "planned" },
       {
         text: "Settlement on Robinhood Chain",
-        state: "planned",
-        note: "The paywall now quotes an eip155 challenge, and the config refuses to start without a chain id, an RPC endpoint and a token contract. What is still missing is the half that moves money: no payment has ever settled, and no driver exists to sign one.",
+        state: "active",
+        note: "The half that moves money now exists, and the codebase no longer carries a second chain\u2019s vocabulary alongside it: the SPL word the trading layer had inherited is gone, the paywall registers an EVM scheme, and the browser is offered no wallet on another network. One chain, named in one place \u2014 a codebase that speaks two is one where the wrong one eventually gets used. What is missing is a run: no payment has settled and no transfer has landed on Robinhood Chain itself.",
       },
     ],
     goal: (
@@ -415,7 +415,7 @@ export default function RoadmapPage() {
 
           <dl className={s.meta}>
             {[
-              ["Revised", "26 Aug 2026"],
+              ["Revised", "29 Aug 2026"],
               ["Focus", "Phase 1"],
               ["Ordering", "Dependency, not date"],
             ].map(([label, value]) => (

@@ -17,8 +17,8 @@ export interface TradePolicyView {
   maxConsecutiveLosses: number;
   maxDailyDrawdownUsd: number;
   cooldownAfterLossMinutes: number;
-  mintCooldownMinutes: number;
-  blockedMints: string[];
+  tokenCooldownMinutes: number;
+  blockedTokens: string[];
 }
 
 export interface BreakerView {
@@ -51,7 +51,7 @@ export interface AutomationView {
 export interface PositionView {
   id: string;
   jobId: string;
-  mint: string;
+  token: string;
   symbol: string;
   status: "OPEN" | "CLOSED";
   sizeUsd: number;

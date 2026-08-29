@@ -262,8 +262,8 @@ Four things are worth knowing about:
   paywall refuses to start without them. A wrong token address is not a
   misconfiguration, it is funds sent somewhere nobody controls, so the same rule
   that forbids a default `X402_PAY_TO` covers all three. Both addresses are
-  checked against `0x` + 40 hex at startup, which catches a Solana address
-  pasted into an EVM field.
+  checked against `0x` + 40 hex at startup, which catches an address from
+  another chain pasted into an EVM field.
 - **Startup fails loudly** if the facilitator does not support the configured
   scheme and network, naming the pair it rejected. Check what one supports with
   `curl <facilitator>/supported` — coverage varies, and not every facilitator
@@ -287,7 +287,7 @@ positions. It is a **consumer** of the protocol, not part of it: nothing in
 
 ```bash
 EXECUTION_DRIVER=paper
-EXECUTION_PRICE_URL='https://<a quote endpoint you verified>?ids={mint}'
+EXECUTION_PRICE_URL='https://<a quote endpoint you verified>?ids={token}'
 PRIVY_APP_ID=…        # optional: own automations by wallet
 PRIVY_APP_SECRET=…
 ```
@@ -306,9 +306,10 @@ this one" is answerable in claims and evidence rather than in a signal.
 
 Four things are worth knowing about:
 
-- **There is no live driver, and `LIVE` returns 501.** Same position
-  `SETTLEMENT_DRIVER` takes: an untested transfer path beside code that has
-  never moved a lamport is dangerous precisely because it looks ready.
+- **There is no live driver, and `LIVE` returns 501.** The default refuses, as
+  `SETTLEMENT_DRIVER` does — but unlike settlement, nothing here has been
+  written to trade: an untested swap path beside code that has never executed
+  a trade is dangerous precisely because it looks ready.
 - **There is no custody.** No key column, no wallet the server signs with. An
   automation holds a name, a policy and two switches.
 - **Both defaults refuse.** With no driver nothing opens; with no price source

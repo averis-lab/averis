@@ -95,13 +95,13 @@ export function registerAutomationRoutes(
           status: "CLOSED",
           closedAt: { gte: new Date(now.getTime() - HISTORY_WINDOW_MS) },
         },
-        select: { mint: true, pnlUsd: true, closedAt: true },
+        select: { token: true, pnlUsd: true, closedAt: true },
       }),
     ]);
 
     const trades: ClosedTrade[] = closed.flatMap((row) =>
       row.closedAt
-        ? [{ mint: row.mint, pnlUsd: toNumber(row.pnlUsd), closedAt: row.closedAt }]
+        ? [{ token: row.token, pnlUsd: toNumber(row.pnlUsd), closedAt: row.closedAt }]
         : [],
     );
 
@@ -298,7 +298,7 @@ export function registerAutomationRoutes(
     if (parsed.data.mode === "LIVE" && !driver.spendsRealMoney) {
       return reply.code(501).send({
         error:
-          "No execution driver can spend real money. Live trading is not implemented — writing an unrun swap path and shipping it beside code that has never moved a lamport is the one thing this repository refuses to do.",
+          "No execution driver can spend real money. Live trading is not implemented — writing an unrun swap path and shipping it beside code that has never executed a trade is the one thing this repository refuses to do.",
         driver: driver.name,
       });
     }
@@ -383,7 +383,7 @@ export function registerAutomationRoutes(
       data: rows.map((row) => ({
         id: row.id,
         jobId: row.jobId,
-        mint: row.mint,
+        token: row.token,
         symbol: row.symbol,
         status: row.status,
         sizeUsd: toNumber(row.sizeUsd),

@@ -10,10 +10,10 @@ import { z } from "zod";
  *
  * Note what is deliberately absent: a symbol allowlist. That is the right
  * primitive for equities and it does not survive contact with memecoins, where
- * every candidate is a mint that did not exist an hour ago. The gate moves
+ * every candidate is a token that did not exist an hour ago. The gate moves
  * instead to the thing Averis can actually vouch for — a cohort verdict that
- * cleared confidence, consensus and cohort-size floors — plus a per-mint
- * cooldown and one position per mint. A blocklist is kept for known-bad mints,
+ * cleared confidence, consensus and cohort-size floors — plus a per-token
+ * cooldown and one position per token. A blocklist is kept for known-bad tokens,
  * but it is a mop, not a gate: it can only name what someone already found.
  */
 export const TradePolicySchema = z.object({
@@ -62,12 +62,12 @@ export const TradePolicySchema = z.object({
   maxDailyDrawdownUsd: z.number().positive().default(50),
   cooldownAfterLossMinutes: z.number().nonnegative().default(30),
   /**
-   * One entry per mint per window. Without it a single trending token produces
+   * One entry per token per window. Without it a single trending token produces
    * several jobs in a row, each one honestly bullish, and the automation ends
    * up with its whole book in one name.
    */
-  mintCooldownMinutes: z.number().nonnegative().default(60),
-  blockedMints: z.array(z.string()).default([]),
+  tokenCooldownMinutes: z.number().nonnegative().default(60),
+  blockedTokens: z.array(z.string()).default([]),
 });
 
 export type TradePolicy = z.infer<typeof TradePolicySchema>;

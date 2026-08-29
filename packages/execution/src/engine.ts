@@ -67,7 +67,7 @@ export class AutomationEngine {
 
     return {
       jobId: job.id,
-      mint: job.target,
+      token: job.target,
       symbol: metadata.symbol ?? job.target.slice(0, 6),
       action: recommendation?.action ?? "",
       confidence: consensus.confidence,
@@ -97,7 +97,7 @@ export class AutomationEngine {
       const decision: EntryDecision = {
         open: false,
         reason: "NOT_A_BUY",
-        message: "Job is not resolved, carries no consensus, or names no target mint",
+        message: "Job is not resolved, carries no consensus, or names no target token",
         sizeUsd: 0,
         gates: [],
       };
@@ -129,7 +129,7 @@ export class AutomationEngine {
 
     // The mark is fetched only after the gates pass, so a quote failure cannot
     // be mistaken for a policy refusal in the event log.
-    const price = await this.prices.quote(verdict.mint);
+    const price = await this.prices.quote(verdict.token);
     if (price === null) {
       const message = `No price available for ${verdict.symbol} from source "${this.prices.name}"`;
       await this.record(automationId, "REFUSED", "NO_PRICE", message, jobId);
@@ -145,7 +145,7 @@ export class AutomationEngine {
     let fill;
     try {
       fill = await this.driver.open({
-        mint: verdict.mint,
+        token: verdict.token,
         symbol: verdict.symbol,
         sizeUsd: decision.sizeUsd,
         price,
@@ -162,7 +162,7 @@ export class AutomationEngine {
         data: {
           automationId,
           jobId: verdict.jobId,
-          mint: verdict.mint,
+          token: verdict.token,
           symbol: verdict.symbol,
           sizeUsd: toDecimalInput(decision.sizeUsd),
           entryPrice: toDecimalInput(fill.price),
@@ -217,7 +217,7 @@ export class AutomationEngine {
     let unpriced = 0;
 
     for (const row of positions) {
-      const price = await this.prices.quote(row.mint);
+      const price = await this.prices.quote(row.token);
       if (price === null) {
         unpriced++;
         continue;
@@ -225,7 +225,7 @@ export class AutomationEngine {
 
       const position: OpenPosition = {
         id: row.id,
-        mint: row.mint,
+        token: row.token,
         sizeUsd: toNumber(row.sizeUsd),
         entryPrice: toNumber(row.entryPrice),
         peakPrice: toNumber(row.peakPrice),
@@ -305,7 +305,7 @@ export class AutomationEngine {
     const rows = await prisma.position.findMany({ where: { automationId, status: "OPEN" } });
     return rows.map((row) => ({
       id: row.id,
-      mint: row.mint,
+      token: row.token,
       sizeUsd: toNumber(row.sizeUsd),
       entryPrice: toNumber(row.entryPrice),
       peakPrice: toNumber(row.peakPrice),
@@ -320,10 +320,10 @@ export class AutomationEngine {
         status: "CLOSED",
         closedAt: { gte: new Date(now.getTime() - HISTORY_WINDOW_MS) },
       },
-      select: { mint: true, pnlUsd: true, closedAt: true },
+      select: { token: true, pnlUsd: true, closedAt: true },
     });
     return rows.flatMap((row) =>
-      row.closedAt ? [{ mint: row.mint, pnlUsd: toNumber(row.pnlUsd), closedAt: row.closedAt }] : [],
+      row.closedAt ? [{ token: row.token, pnlUsd: toNumber(row.pnlUsd), closedAt: row.closedAt }] : [],
     );
   }
 

@@ -800,7 +800,8 @@ model Position {
   jobId         String         @unique
   job           Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
 
-  mint          String
+  /// The token contract this position is in.
+  token         String
   symbol        String
 
   status        PositionStatus @default(OPEN)
