@@ -380,7 +380,27 @@ money.
 | A failed payment returns to `PENDING` | The failed `Transaction` row stays as the record of the attempt |
 | Only `CONFIRMED` settles the debt | A broadcast payment stays `APPROVED` until something observes it landing |
 
-Drivers are `none` (refuses, the default) and `ledger` (records a payment made
-outside this system). **No on-chain driver exists.** That is deliberate: an
-untested transfer path is the most dangerous possible thing to have in a
-settlement layer, because it looks ready.
+Drivers are `none` (refuses, the default), `ledger` (records a payment made
+outside this system) and `evm` (transfers an ERC-20 on an EVM chain).
+
+The `evm` driver is what makes a reward payable rather than merely calculable.
+It reads its chain id, RPC, token contract and signing key from the
+environment — none has a default, for the reason the paywall has no network
+table — and it adds three rules of its own:
+
+| Rule | Why |
+|---|---|
+| The RPC must serve the configured chain id | Two independent claims about one chain. A testnet endpoint under a mainnet id pays real rewards in worthless tokens with nothing looking wrong |
+| Every transfer is simulated before it is broadcast | An insufficient balance costs no gas and leaves the reward retryable, instead of a revert that costs gas and settles nothing |
+| An address the driver cannot pay is a *skip*, not a failure | Agent payees come from the wallet a user connected through Privy, which is not guaranteed to be an EVM address. `npm run settle` reports it before anything is executed rather than failing partway through a split |
+
+`CONFIRMED` still means observed: the status is reported only after the receipt
+is read back and seen to have succeeded. A transfer that has not confirmed
+within the timeout is reported `BROADCAST` with its hash, and the debt stays
+owed until something sees it land.
+
+The transfer path is exercised in `tests/settlement-evm-transfer.test.ts`
+against a JSON-RPC server on loopback — the transaction is genuinely built,
+signed and serialised, and the test reads the signed bytes back to confirm the
+calldata says what the reward said. What has **not** happened is a transfer on a
+real chain with real funds. That remains the gap.

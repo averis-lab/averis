@@ -35,18 +35,29 @@ export interface PaymentRecord {
  * would not be enforceable.
  */
 export async function registerPayments(app: FastifyInstance, config: PaymentConfig): Promise<void> {
-  const [{ paymentMiddlewareFromHTTPServer, x402HTTPResourceServer, x402ResourceServer }, { HTTPFacilitatorClient }, { ExactSvmScheme }] =
+  const [{ paymentMiddlewareFromHTTPServer, x402HTTPResourceServer, x402ResourceServer }, { HTTPFacilitatorClient }, { ExactEvmScheme }] =
     await Promise.all([
       import("@x402/fastify"),
       import("@x402/core/server"),
-      import("@x402/svm/exact/server"),
+      import("@x402/evm/exact/server"),
     ]);
+
+  // Before anything is quoted: the RPC has to serve the chain the challenge
+  // names. See `assertChainId` for why the two are not the same statement.
+  await assertChainId(config);
 
   const facilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
 
+  // The scheme is chosen by the network family, and `config.network.caip2` is
+  // an `eip155:` identifier — every address the config accepts is checked as
+  // `0x` + 40 hex, and the asset is an ERC-20 contract. Averis settles on
+  // Robinhood Chain, so the EVM scheme is the only one that belongs here: a
+  // scheme from another chain family registered against an eip155 network
+  // cannot produce a payload any facilitator will verify, which is what was
+  // happening before.
   const resourceServer = new x402ResourceServer(facilitator).register(
     config.network.caip2,
-    new ExactSvmScheme({ rpcUrl: config.network.rpcUrl }),
+    new ExactEvmScheme(),
   );
 
   const httpServer = new x402HTTPResourceServer(resourceServer, {
@@ -98,6 +109,43 @@ export async function registerPayments(app: FastifyInstance, config: PaymentConf
     },
     "x402 payments enabled on POST /v1/jobs",
   );
+}
+
+/**
+ * Checks the RPC serves the chain the configuration claims.
+ *
+ * `X402_RPC_URL` and `X402_CHAIN_ID` are two independent statements about the
+ * same chain and nothing else compares them: the challenge quotes the id, while
+ * the chain a payer's transaction actually lands on is whatever the RPC is
+ * connected to. A testnet endpoint under a mainnet id looks like a working
+ * paywall right up to the point where no payment ever verifies, and the
+ * resulting bug reads as a facilitator problem rather than a config one.
+ *
+ * This is also what keeps `X402_RPC_URL` an honest requirement: the EVM scheme
+ * needs no RPC of its own, so without this check the paywall would be demanding
+ * a value it never used.
+ */
+async function assertChainId(config: PaymentConfig): Promise<void> {
+  const { createPublicClient, http } = await import("viem");
+  const client = createPublicClient({ transport: http(config.network.rpcUrl) });
+
+  let served: number;
+  try {
+    served = await client.getChainId();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `x402 is enabled but X402_RPC_URL (${config.network.rpcUrl}) could not be reached: ${reason}`,
+    );
+  }
+
+  if (served !== config.network.chainId) {
+    throw new Error(
+      `X402_CHAIN_ID is ${config.network.chainId} but the RPC at ${config.network.rpcUrl} serves ` +
+        `chain ${served}. One of the two is wrong, and a challenge quoted for ` +
+        `${config.network.caip2} would be signed against a chain this gateway is not watching.`,
+    );
+  }
 }
 
 /**

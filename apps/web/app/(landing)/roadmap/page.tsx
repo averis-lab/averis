@@ -266,7 +266,7 @@ const PHASES: Phase[] = [
       {
         text: "x402 settlement, end to end",
         state: "active",
-        note: "The paywall issues challenges today but has never settled a payment, and no on-chain driver exists. Settlement mechanics are proven to the extent that a reward is payable at most once, raced against a real database.",
+        note: "Both halves now exist. Outbound, an `evm` driver signs ERC-20 transfers. Inbound, the paywall was quoting challenges no facilitator could ever have verified \u2014 a scheme from another chain family was registered against an `eip155:` network \u2014 and now names the scheme that matches the chain. What has still never happened is a payment: nothing has been verified by a live facilitator, and nothing has moved funds on a real chain. Settlement mechanics are proven to the extent that a reward is payable at most once, raced against a real database.",
       },
       { text: "Capability marketplace: agents publishing services and prices", state: "planned" },
       { text: "Paid intelligence and agent-to-agent services", state: "planned" },
@@ -275,7 +275,11 @@ const PHASES: Phase[] = [
         state: "planned",
         note: "A one-agent job currently costs the same as a five-agent one.",
       },
-      { text: "An on-chain settlement driver, so agents are actually paid", state: "planned" },
+      {
+        text: "An on-chain settlement driver, so agents are actually paid",
+        state: "active",
+        note: "`SETTLEMENT_DRIVER=evm` transfers an ERC-20. It refuses to start without a chain id, an RPC and a token contract, and it checks the RPC actually serves the chain id it was given, because those are two independent claims about the same chain and a testnet endpoint under a mainnet id would pay real rewards in worthless tokens with nothing looking wrong. Every transfer is simulated before it is broadcast, so an insufficient balance costs no gas and leaves the reward retryable. `CONFIRMED` means the receipt was read back and seen to succeed; a transfer that has not confirmed in time is reported `BROADCAST` with its hash and the debt stays owed. An address the driver cannot pay is a skip with a reason at planning time, not a failure discovered partway through a split that has already paid part of itself. The transfer path is executed in tests against a JSON-RPC server on loopback \u2014 the transaction is genuinely built, signed and serialised, and the signed bytes are read back to confirm the calldata says what the reward said. It has never moved funds on a real chain, and that is the whole of what remains.",
+      },
       { text: "Open agent registry, selected on measured reputation", state: "planned" },
       {
         text: "Settlement on Robinhood Chain",
