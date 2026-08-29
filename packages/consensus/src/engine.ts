@@ -1,5 +1,6 @@
 import type {
   AgentContribution,
+  CohortIndependence,
   ConsensusClaim,
   CorroborationBreadth,
   ConsensusInput,
@@ -10,6 +11,7 @@ import type {
   Risk,
 } from "@averis/types";
 import { LexicalClusterer, toClaimRefs, type ClaimCluster, type ClaimClusterer, type ClaimRef } from "./cluster";
+import { describeIndependence, measureIndependence, modelOrigin } from "./independence";
 import { MultiFactorWeighting, type AgentWeight, type WeightingStrategy } from "./weighting";
 
 export interface ConsensusConfig {
@@ -117,8 +119,21 @@ export class ConsensusEngine {
         weight: weight?.weight ?? 0,
         agreement: align.total > 0 ? align.agreed / align.total : 0,
         breakdown: weight?.breakdown ?? {},
+        modelProvider: input.modelProvider,
+        modelName: input.modelName,
+        modelOrigin: modelOrigin(input.modelProvider, input.modelName),
       };
     });
+
+    // Measured from the contributions rather than the raw inputs, so an origin
+    // that carried almost none of the weight is not counted as a full voice.
+    const independence = measureIndependence(
+      contributions.map((row) => ({
+        modelProvider: row.modelProvider,
+        modelName: row.modelName,
+        weight: row.weight,
+      })),
+    );
 
     // Agreement is scaled by corroboration breadth. Without this a lone
     // survivor reports the same 100% consensus as a cohort of three that
@@ -137,10 +152,19 @@ export class ConsensusEngine {
         rawAgreement: round(agreement),
         corroborationFactor: round(corroboration.factor),
       },
-      summary: this.buildSummary(inputs, claims, disagreements, consensusScore, confidence, corroboration),
+      summary: this.buildSummary(
+        inputs,
+        claims,
+        disagreements,
+        consensusScore,
+        confidence,
+        corroboration,
+        independence,
+      ),
       confidence,
       consensusScore,
       corroboration,
+      independence,
       claims,
       metrics: this.mergeMetrics(inputs, weightByOutput),
       recommendation: this.mergeRecommendation(inputs, weightByOutput, corroboration),
@@ -270,6 +294,7 @@ export class ConsensusEngine {
     consensusScore: number,
     confidence: number,
     corroboration: CorroborationBreadth,
+    independence: CohortIndependence,
   ): string {
     if (claims.length === 0) {
       return `${inputs.length} agents produced no claim meeting the ${this.minSupport} support threshold. No intelligence could be established.`;
@@ -293,7 +318,12 @@ export class ConsensusEngine {
         ? ` ${disagreements.length} topic(s) remain contested and are reported separately rather than averaged.`
         : " The cohort did not materially disagree on any topic.";
 
-    return `${inputs.length} independent agents produced ${claims.length} corroborated claim(s) at ${(confidence * 100).toFixed(0)}% confidence and ${(consensusScore * 100).toFixed(0)}% consensus.${shortfall} Lead finding: ${lead.statement}${contested}`;
+    // Said in the summary and not only in a field: the number a reader carries
+    // away is "they agreed", and how much that is worth belongs in the same
+    // breath as the claim, not one level down in a structure nobody opens.
+    const cohort = describeIndependence(independence, corroboration.cohortSize);
+
+    return `${inputs.length} independent agents produced ${claims.length} corroborated claim(s) at ${(confidence * 100).toFixed(0)}% confidence and ${(consensusScore * 100).toFixed(0)}% consensus.${shortfall} Lead finding: ${lead.statement}${contested}${cohort === null ? "" : ` ${cohort}`}`;
   }
 
   private mergeMetrics(

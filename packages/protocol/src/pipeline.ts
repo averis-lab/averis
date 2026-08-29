@@ -52,6 +52,12 @@ export async function loadConsensusInputs(jobId: string): Promise<ConsensusInput
       agentName: output.agent.name,
       summary: output.summary,
       confidence: output.confidence,
+      // From the output, never from `output.agent`. The registry row carries
+      // the agent's *current* binding, and reading the cohort's model mix
+      // through it would mean an operator repointing an agent tomorrow
+      // silently rewrites what a job finished last week says produced it.
+      modelProvider: output.modelProvider,
+      modelName: output.modelName,
       claims: output.claims.map((claim) => ({
         statement: claim.statement,
         kind: claim.kind,
@@ -226,6 +232,7 @@ export class ConsensusStage {
           outcome.recommendation === null ? Prisma.JsonNull : (outcome.recommendation as object),
         risks: outcome.risks as unknown as object,
         disagreements: outcome.disagreements as unknown as object,
+        independence: outcome.independence as unknown as object,
         contributions: {
           create: outcome.contributions.map((c) => ({
             agentId: c.agentId,
@@ -242,6 +249,10 @@ export class ConsensusStage {
         confidence: outcome.confidence,
         consensusScore: outcome.consensusScore,
         claims: outcome.claims as unknown as object,
+        // Rewritten with the summary that quotes it. A re-merge that refreshed
+        // the wording and left the measurement behind would leave the two
+        // disagreeing on the same page.
+        independence: outcome.independence as unknown as object,
       },
     });
 

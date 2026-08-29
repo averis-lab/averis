@@ -416,6 +416,15 @@ model AgentOutput {
   recommendation Json?
   risks        Json          @default("[]")
 
+  /// The model that produced this output, resolved at run time.
+  ///
+  /// A snapshot, not a join. `Agent.modelProvider` is a registry field an
+  /// operator may edit at any time, and reading the cohort's model mix back
+  /// through it would let today's edit silently rewrite what a finished job
+  /// says produced its claims. Empty on rows written before this was recorded.
+  modelProvider String       @default("")
+  modelName    String        @default("")
+
   /// Execution accounting — drives cost attribution and budget reconciliation.
   tokensIn     Int           @default(0)
   tokensOut    Int           @default(0)
@@ -557,6 +566,12 @@ model ConsensusResult {
   risks          Json   @default("[]")
   /// Claims where agents materially disagreed — surfaced, never averaged away.
   disagreements  Json   @default("[]")
+  /// Model diversity of the cohort behind this result, as CohortIndependence.
+  ///
+  /// Stored beside the score rather than derived on read: it is a fact about
+  /// the cohort that merged this job, and the registry it was derived from
+  /// moves on. `{}` on results predating the measurement.
+  independence   Json   @default("{}")
 
   createdAt      DateTime @default(now())
 

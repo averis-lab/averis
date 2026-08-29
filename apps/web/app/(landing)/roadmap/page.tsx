@@ -122,6 +122,11 @@ const PHASES: Phase[] = [
       },
       { text: "Deterministic evaluation across five dimensions", state: "shipped" },
       { text: "Consensus that preserves disagreement, scaled by corroboration breadth", state: "shipped" },
+      {
+        text: "Cohort independence: how many vendors were actually behind a verdict",
+        state: "shipped",
+        note: "Every output records the model that produced it, and a gateway is resolved through to the lab that answered. A cohort sharing one model is reported as such — stated, never folded into the score, because agreement and what agreement is worth are two questions.",
+      },
       { text: "Agent registry, with reputation stored as replayable snapshots", state: "shipped" },
       {
         text: "Intelligence reports and the explanation chain",

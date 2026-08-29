@@ -273,6 +273,17 @@ export class ExecutionPipeline {
     });
 
     try {
+      // Built before the reservation, for two reasons. A provider that cannot
+      // be constructed spends nothing, so failing here rather than inside the
+      // budget closure no longer burns a reservation on a misconfiguration.
+      // And the binding it resolves — after the registry's blanks are filled
+      // in from the environment — is what actually answers, which is the thing
+      // worth recording against the output.
+      const provider = createLLMProvider(
+        { provider: agent.modelProvider, model: agent.modelName },
+        this.ctx.env,
+      );
+
       const result = await this.ctx.budget.withBudget(
         {
           operatorId: null,
@@ -283,11 +294,6 @@ export class ExecutionPipeline {
           detail: { agentName: agent.agentName },
         },
         async () => {
-          const provider = createLLMProvider(
-            { provider: agent.modelProvider, model: agent.modelName },
-            this.ctx.env,
-          );
-
           const run = await runAgent({
             jobId: job.jobId,
             agentId: agent.agentId,
@@ -312,7 +318,10 @@ export class ExecutionPipeline {
         },
       );
 
-      await this.persist(job.jobId, agent.agentId, agent.id, result);
+      await this.persist(job.jobId, agent.agentId, agent.id, result, {
+        provider: provider.name,
+        model: provider.model,
+      });
 
       await prisma.jobAssignment.update({
         where: { id: agent.id },
@@ -338,6 +347,14 @@ export class ExecutionPipeline {
     agentId: string,
     assignmentId: string,
     run: AgentRunResult,
+    /**
+     * What actually answered, recorded against the output rather than left to
+     * a join on the agent registry. The registry is editable, and a cohort's
+     * model mix is part of what a finished result means: re-deriving it later
+     * would let a routine registry edit rewrite the provenance of a claim
+     * somebody already acted on.
+     */
+    binding: { provider: string; model: string },
   ): Promise<void> {
     // Cache the upstream items this run cited *before* opening the
     // transaction. They belong to the data-source cache rather than to the
@@ -394,6 +411,8 @@ export class ExecutionPipeline {
           assignmentId,
           summary: run.summary,
           confidence: run.confidence,
+          modelProvider: binding.provider,
+          modelName: binding.model,
           metrics: run.metrics as object,
           recommendation: run.recommendation === null ? Prisma.JsonNull : (run.recommendation as object),
           risks: run.risks as object,

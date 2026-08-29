@@ -168,6 +168,60 @@ says nothing was corroborated.
 A job whose cohort shrinks still runs rather than failing outright; the honest
 numbers plus the job's own `minimumConfidence` are the safety net.
 
+**5. Measure how independent the cohort was.** Corroboration breadth asks how
+many analysts agreed. It does not ask how many *different things* were doing the
+analysing — and five agents are five opinions only if they can be wrong in
+different ways. A cohort sharing one model shares its blind spots, so part of
+its unanimity is a property of that model rather than a finding about the world.
+
+Every output records the provider and model that produced it, and the merge
+reports what the cohort was made of:
+
+```
+independence = {
+  origins: [{ origin, agents, weight }],   // vendors, heaviest first
+  effectiveOrigins,                        // 1 / Σ share²  — weighted
+  largestOriginShare,
+  distinctModels,
+  monoculture,                             // one model across the cohort
+  unknown,                                 // at least one binding unrecorded
+}
+```
+
+Two details decide whether the number means anything:
+
+*Origins are vendors, not credentials.* A gateway is resolved through to the lab
+that answered — `openrouter` + `google/gemini-3-pro` is Google — because the
+point of a gateway is that one key reaches many labs. Counting the credential
+would report a three-lab cohort as single-vendor, and three agents on one routed
+model as diverse. Aliases fold too: `gemini` and `google/…` are one lab, not
+two.
+
+*Vendors are counted by weight.* `effectiveOrigins` is the inverse Simpson
+index, so three vendors where one carries 90% of the merge weight score 1.2 and
+not 3 — the verdict really is that one agent's view with two bystanders.
+
+**There is deliberately no multiplier.** Corroboration carries one because at
+`n = 1` there is arithmetically no inter-agent agreement to measure. Monoculture
+has no such clean zero: agents on one model, given different roles and different
+evidence, do genuinely differ — just less, by an amount nobody here can put a
+number on. Folding an invented coefficient into `consensusScore` would leave one
+number answering two questions at once, how much they agreed and how much that
+agreement is worth, and the second is the reader's to judge. So the measurement
+is stated — in the summary, in `explain`'s reasons and caveats, and on the
+report page under the consensus meter — and the score stays a measurement of
+agreement.
+
+`unknown` is load-bearing. A result merged before this was recorded has no
+origins, and that is not the same as a cohort that turned out to be uniform;
+every reader downstream says "not recorded" rather than naming a vendor the
+protocol never observed.
+
+The binding is stored on the output, not read back through `Agent.modelProvider`
+at display time. The registry is editable, and re-deriving it would let a
+routine repointing of an agent silently rewrite what a finished job says
+produced its claims.
+
 ## Datanet rubrics
 
 Each Reppo datanet publishes its own standard: what contributors should submit

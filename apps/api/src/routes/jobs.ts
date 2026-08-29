@@ -182,7 +182,13 @@ export function registerJobRoutes(app: FastifyInstance, ctx: ProtocolContext): v
         consensus: {
           include: {
             contributions: {
-              include: { agent: { select: { id: true, name: true } } },
+              include: {
+                agent: { select: { id: true, name: true } },
+                // The binding recorded against the output, not the agent's
+                // current one — the same reason the cohort measurement is
+                // stored rather than re-derived.
+                output: { select: { modelProvider: true, modelName: true } },
+              },
               orderBy: { weight: "desc" },
             },
           },
@@ -220,6 +226,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: ProtocolContext): v
           corroboration:
             (job.consensus.strategyConfig as { corroboration?: unknown } | null)?.corroboration ??
             null,
+          independence: independenceFrom(job.consensus.independence),
           strategy: job.consensus.strategy,
           strategyConfig: job.consensus.strategyConfig,
           claims: job.consensus.claims,
@@ -234,6 +241,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: ProtocolContext): v
           weight: c.weight,
           agreement: c.agreement,
           breakdown: c.breakdown,
+          model: c.output.modelProvider ? `${c.output.modelProvider}/${c.output.modelName}` : null,
         })),
         agentOutputs: job.outputs.map((output) => ({
           agentId: output.agentId,
@@ -331,6 +339,7 @@ export function registerJobRoutes(app: FastifyInstance, ctx: ProtocolContext): v
       consensusScore: job.consensus.consensusScore,
       minimumConfidence: job.minimumConfidence,
       corroboration,
+      independence: independenceFrom(job.consensus.independence),
       claims,
       disagreements: (job.consensus.disagreements ?? []) as unknown as Array<{ statement: string }>,
       evaluations: job.outputs.flatMap((output) =>
@@ -351,6 +360,30 @@ interface Corroboration {
   expected: number;
   factor: number;
   short: boolean;
+}
+
+type Independence = NonNullable<Parameters<typeof explainJob>[0]["independence"]>;
+
+/**
+ * Reads the stored cohort measurement, or null when there is none.
+ *
+ * Results merged before the measurement existed carry the column default,
+ * `{}`. That is not a uniform cohort and must not be rendered as one, so the
+ * absence of `origins` is the test — an empty object becomes null and every
+ * reader downstream says "not recorded" instead of "one vendor".
+ */
+function independenceFrom(stored: unknown): Independence | null {
+  if (!stored || typeof stored !== "object") return null;
+  const row = stored as Partial<Independence>;
+  return Array.isArray(row.origins)
+    ? {
+        origins: row.origins,
+        effectiveOrigins: row.effectiveOrigins ?? 0,
+        distinctModels: row.distinctModels ?? 0,
+        monoculture: row.monoculture ?? false,
+        unknown: row.unknown ?? false,
+      }
+    : null;
 }
 
 function serializeJob(job: {

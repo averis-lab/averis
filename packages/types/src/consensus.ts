@@ -12,6 +12,11 @@ export interface AgentContribution {
   agreement: number;
   /** Per-factor breakdown so a weight is always explainable. */
   breakdown: Record<string, number>;
+  /** Provider this output actually ran on, as recorded when it was produced. */
+  modelProvider: string;
+  modelName: string;
+  /** The vendor behind that model — resolved through gateways. See modelOrigin. */
+  modelOrigin: string;
 }
 
 /** A claim after merging equivalent statements across agents. */
@@ -51,6 +56,8 @@ export interface ConsensusOutcome {
   consensusScore: number;
   /** How much independent corroboration backed the result, 0..1. */
   corroboration: CorroborationBreadth;
+  /** How independent the agreeing voices were, in model terms. */
+  independence: CohortIndependence;
   claims: ConsensusClaim[];
   metrics: Record<string, number | string>;
   recommendation: Recommendation | null;
@@ -77,6 +84,60 @@ export interface CorroborationBreadth {
   short: boolean;
 }
 
+/** One vendor's footprint in a cohort. */
+export interface OriginShare {
+  /** The vendor whose model answered — never the gateway it was routed through. */
+  origin: string;
+  /** Contributing agents running on it. */
+  agents: number;
+  /** Their combined normalized weight, 0..1. */
+  weight: number;
+}
+
+/**
+ * How independent the cohort's voices actually were.
+ *
+ * Reported for the same reason as {@link CorroborationBreadth}, one level
+ * down. That answers how many analysts agreed; this answers how many
+ * different things were doing the analysing. Five agents are five opinions
+ * only if they can be wrong in different ways — a cohort sharing one model
+ * shares its blind spots, so its unanimity is partly an artifact of that
+ * model rather than a finding about the world.
+ *
+ * **Deliberately no multiplier.** `CorroborationBreadth` carries a `factor`
+ * that discounts the score, because at one agent there is arithmetically no
+ * inter-agent agreement to measure. Monoculture has no such clean zero: agents
+ * on one model given different roles and evidence do genuinely differ, just
+ * less. Folding a made-up coefficient into `consensusScore` would leave that
+ * number answering two questions at once — how much they agreed, and how much
+ * that agreement is worth — and it is the second one a reader must be free to
+ * judge. So this is measured, reported and stated in the summary, and the
+ * score stays a measurement of agreement.
+ */
+export interface CohortIndependence {
+  /** Distinct origins, heaviest first. */
+  origins: OriginShare[];
+  /**
+   * Weight-aware origin count, between 1 and `origins.length`.
+   *
+   * Three vendors where one carries 90% of the weight is not three
+   * independent voices, and a plain count would say it was.
+   */
+  effectiveOrigins: number;
+  /** Weighted share held by the single largest origin, 0..1. */
+  largestOriginShare: number;
+  /** Distinct provider/model pairs across the cohort. */
+  distinctModels: number;
+  /** Every contributing agent ran the same model. */
+  monoculture: boolean;
+  /**
+   * At least one output has no recorded binding, so nothing above can be
+   * trusted as complete. True for jobs that ran before the binding was
+   * recorded; reported rather than guessed at.
+   */
+  unknown: boolean;
+}
+
 /** Input row for the consensus engine — one agent's submitted output. */
 export interface ConsensusInput {
   outputId: string;
@@ -84,6 +145,17 @@ export interface ConsensusInput {
   agentName: string;
   summary: string;
   confidence: number;
+  /**
+   * The model that produced this output, as recorded at the time it ran.
+   *
+   * Not read by the merge itself — nothing here changes which claims survive.
+   * It is carried so the result can say how independent the cohort's voices
+   * actually were, which is a fact about the cohort and not about the claims.
+   * An empty string means the run predates the recording of it; see
+   * {@link CohortIndependence.unknown}.
+   */
+  modelProvider: string;
+  modelName: string;
   claims: Array<{
     statement: string;
     kind: ClaimKind;

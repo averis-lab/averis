@@ -180,6 +180,20 @@ export interface ExplainableJob {
   consensusScore: number;
   minimumConfidence: number | null;
   corroboration: { cohortSize: number; expected: number; factor: number; short: boolean } | null;
+  /**
+   * What the cohort was made of, as measured when the merge ran.
+   *
+   * Null for a job finished before this was recorded, which is not the same
+   * as a cohort that turned out to be uniform — an explanation that could not
+   * tell those apart would be asserting something it does not know.
+   */
+  independence: {
+    origins: Array<{ origin: string; agents: number; weight: number }>;
+    effectiveOrigins: number;
+    distinctModels: number;
+    monoculture: boolean;
+    unknown: boolean;
+  } | null;
   claims: ExplainableClaim[];
   disagreements: Array<{ statement: string }>;
   /** Deterministic evaluation scores, one per agent output. */
@@ -248,11 +262,44 @@ export function explainJob(job: ExplainableJob): Explanation {
       `separately: a cohort can be confident and split.`,
   );
 
+  // Independence belongs in the chain, not only in the caveats. When a cohort
+  // did span vendors that is a reason the agreement means something, and a
+  // reader who only ever sees it as a warning learns that models are a problem
+  // rather than that this one was handled.
+  const spread = job.independence;
+  if (spread && !spread.unknown && spread.origins.length > 1) {
+    reasons.push(
+      `Its ${spread.distinctModels} model(s) came from ${spread.origins.length} vendors ` +
+        `(${spread.effectiveOrigins.toFixed(1)} effective after weighting), so the agreement ` +
+        `is not one model agreeing with itself.`,
+    );
+  }
+
   const caveats: string[] = [];
   if (job.corroboration?.short) {
     caveats.push(
       `Only ${job.corroboration.cohortSize} of ${job.corroboration.expected} agents finished, ` +
         `so the consensus score was discounted by ${job.corroboration.factor.toFixed(2)}.`,
+    );
+  }
+  // A cohort's model mix is a caveat only when it is a limit on the result.
+  // Stated as what it does to the reading, not as a score: this project has no
+  // defensible coefficient for "how much less a shared model's agreement is
+  // worth", and a made-up one would be quoted as though it did.
+  if (spread?.unknown) {
+    caveats.push(
+      "The models behind this cohort were not recorded, so how independently these agents " +
+        "could be wrong is unknown.",
+    );
+  } else if (spread?.monoculture && cohortSize > 1) {
+    caveats.push(
+      `All ${cohortSize} agents ran the same model (${spread.origins[0]?.origin ?? "one vendor"}), ` +
+        `so their agreement reflects that shared model as well as the evidence.`,
+    );
+  } else if (spread && spread.origins.length === 1 && cohortSize > 1) {
+    caveats.push(
+      `Every model in this cohort came from ${spread.origins[0]?.origin}, so a blind spot in ` +
+        `that vendor's training would be shared by all ${cohortSize} agents.`,
     );
   }
   if (job.disagreements.length > 0) {

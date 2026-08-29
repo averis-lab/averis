@@ -117,6 +117,16 @@ describe("the job-level explanation", () => {
     consensusScore: 0.84,
     minimumConfidence: null,
     corroboration: { cohortSize: 3, expected: 3, factor: 1, short: false },
+    independence: {
+      origins: [
+        { origin: "anthropic", agents: 2, weight: 0.66 },
+        { origin: "openai", agents: 1, weight: 0.34 },
+      ],
+      effectiveOrigins: 1.8,
+      distinctModels: 3,
+      monoculture: false,
+      unknown: false,
+    },
     claims: [claim(), claim({ statement: "second" })],
     disagreements: [],
     evaluations: [

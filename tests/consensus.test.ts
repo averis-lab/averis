@@ -30,6 +30,12 @@ function agent(
   claims: Array<[string, number]>,
   signals: Partial<ConsensusInput["signals"]> = {},
   confidence = 0.8,
+  // Defaults to the binding the seeded registry ships with, so a cohort built
+  // by these helpers is the same monoculture the reference demo runs.
+  binding: { modelProvider: string; modelName: string } = {
+    modelProvider: "mock",
+    modelName: "mock-analyst",
+  },
 ): ConsensusInput {
   return {
     outputId: `out-${id}`,
@@ -37,6 +43,7 @@ function agent(
     agentName: `Agent ${id}`,
     summary: `summary ${id}`,
     confidence,
+    ...binding,
     claims: claims.map(([statement, c]) => ({
       statement,
       kind: "ASSESSMENT" as const,

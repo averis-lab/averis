@@ -124,6 +124,23 @@ export interface IntelligenceReport {
       factor: number;
       short: boolean;
     } | null;
+    /**
+     * What the cohort was made of, measured when the merge ran.
+     *
+     * Null for results finished before this was recorded. Null is not "one
+     * vendor": a client that renders the two the same way asserts something
+     * the protocol did not measure.
+     */
+    independence: {
+      origins: Array<{ origin: string; agents: number; weight: number }>;
+      effectiveOrigins: number;
+      largestOriginShare?: number;
+      distinctModels: number;
+      /** Every contributing agent ran the same model. */
+      monoculture: boolean;
+      /** At least one binding was not recorded, so the rest is incomplete. */
+      unknown: boolean;
+    } | null;
     strategy: string;
     claims: IntelligenceClaim[];
     metrics: Record<string, number | string>;
@@ -142,6 +159,8 @@ export interface IntelligenceReport {
     weight: number;
     agreement: number;
     breakdown: Record<string, number>;
+    /** `provider/model` as recorded on the output; null when unrecorded. */
+    model: string | null;
   }>;
   agentOutputs: Array<{
     agentId: string;
