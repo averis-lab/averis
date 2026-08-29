@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { AverisError } from "@averis/sdk";
 import { describeQueryProblem, normalizeQuery } from "@averis/types";
-import { api } from "@/lib/api";
+import { GatewayError, WALLET_LOGIN, sendJson } from "@/lib/api";
+import { viewerToken } from "@/lib/session";
 
 export type CreateJobState =
   | { status: "idle" }
@@ -23,6 +23,27 @@ export async function createJobAction(
   _previous: CreateJobState,
   formData: FormData,
 ): Promise<CreateJobState> {
+  /*
+   * Who is asking, before what they are asking.
+   *
+   * This action is a public POST endpoint — a form on a page anyone can open,
+   * and reachable without the page at all. Authenticating it as the
+   * *application* meant every visitor spent the operator's agents under one
+   * shared identity, which is how a stranger's "are u retrarded" came to sit in
+   * the job list owned by the same requester as everything else.
+   *
+   * The token is not trusted here and is not inspected; it is forwarded, and
+   * the gateway verifies its signature before believing any field. A forged
+   * cookie buys a 401, not a job.
+   */
+  const token = await viewerToken();
+  if (WALLET_LOGIN && !token) {
+    return {
+      status: "error",
+      message: "Connect a wallet first — a job is owned by the wallet that created it.",
+    };
+  }
+
   const query = normalizeQuery(String(formData.get("query") ?? ""));
   const problem = describeQueryProblem(query);
   if (problem) return { status: "error", message: problem };
@@ -38,16 +59,25 @@ export async function createJobAction(
 
   let jobId: string;
   try {
-    const job = await api.createJob({
-      type: String(formData.get("type") ?? "dataset-evaluation"),
-      query,
-      requiredCapabilities: capabilities,
-      requiredAgents: agents,
-      budget,
-      minimumConfidence: minConfidence,
-      deadline: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-    });
-    jobId = job.id;
+    const created = await sendJson<{ data: { id: string } }>(
+      "/v1/jobs",
+      "POST",
+      {
+        type: String(formData.get("type") ?? "dataset-evaluation"),
+        query,
+        requiredCapabilities: capabilities,
+        requiredAgents: agents,
+        budget,
+        minimumConfidence: minConfidence,
+        deadline: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      },
+      undefined,
+      // The viewer's own identity, so the gateway stamps the job with their
+      // account rather than this app's. Null only when wallet login is off,
+      // where the shared key is still the intended caller.
+      token,
+    );
+    jobId = created.data.id;
   } catch (error) {
     /*
      * A duplicate is not a failure, so it does not render as one.
@@ -61,8 +91,8 @@ export async function createJobAction(
      * try/catch, for the same reason the success path does.
      */
     const existing =
-      error instanceof AverisError && error.status === 409
-        ? (error.detail as { existingJobId?: string } | undefined)?.existingJobId
+      error instanceof GatewayError && error.status === 409
+        ? (error.body as { existingJobId?: string } | undefined)?.existingJobId
         : undefined;
     if (!existing) {
       return {

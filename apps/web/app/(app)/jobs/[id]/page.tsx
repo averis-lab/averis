@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { api, attempt } from "@/lib/api";
+/* `api` stays imported for its types below — `typeof api.explain` and
+   friends describe the report shapes. The calls go through `viewerApi()`. */
+import { api, attempt, viewerApi } from "@/lib/api";
 import { IN_FLIGHT, SEVERITY_TONE, pct, pct1, timeAgo } from "@/lib/format";
 import { ApiDown, Card, Meter, StatusBadge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -10,7 +12,15 @@ export const dynamic = "force-dynamic";
 export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
   const { id } = await params;
 
-  const job = await attempt(() => api.getJob(id));
+  /*
+   * The viewer's own identity, so a job created under a wallet is readable by
+   * the wallet that created it. The gateway answers 404 rather than 403 for
+   * another account's job, so reading this as the application would make a
+   * person's own job indistinguishable from one that never existed.
+   */
+  const client = await viewerApi();
+
+  const job = await attempt(() => client.getJob(id));
   if (!job.ok) {
     if (job.error.includes("not found")) notFound();
     return <ApiDown error={job.error} />;
@@ -19,7 +29,10 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
   const inFlight = IN_FLIGHT.has(job.value.status);
   const resolved = job.value.status === "RESOLVED";
   const [report, why] = resolved
-    ? await Promise.all([attempt(() => api.getIntelligence(id)), attempt(() => api.explain(id))])
+    ? await Promise.all([
+        attempt(() => client.getIntelligence(id)),
+        attempt(() => client.explain(id)),
+      ])
     : [null, null];
 
   return (
