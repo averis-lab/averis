@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { AverisError } from "@averis/sdk";
+import { describeQueryProblem, normalizeQuery } from "@averis/types";
 import { api } from "@/lib/api";
 
 export type CreateJobState =
@@ -12,16 +14,18 @@ export type CreateJobState =
  * Creates an intelligence job.
  *
  * Server Actions are reachable by direct POST, so the input is validated here
- * rather than relying on the form's own constraints.
+ * rather than relying on the form's own constraints. The rule itself lives in
+ * `@averis/types` and is the same one the gateway applies — the form checks it
+ * as you type, this checks it before spending a round trip, and the API checks
+ * it because neither of the first two is reachable by a script.
  */
 export async function createJobAction(
   _previous: CreateJobState,
   formData: FormData,
 ): Promise<CreateJobState> {
-  const query = String(formData.get("query") ?? "").trim();
-  if (query.length < 8) {
-    return { status: "error", message: "Describe what intelligence you want in a little more detail." };
-  }
+  const query = normalizeQuery(String(formData.get("query") ?? ""));
+  const problem = describeQueryProblem(query);
+  if (problem) return { status: "error", message: problem };
 
   const capabilities = String(formData.get("capabilities") ?? "")
     .split(",")
@@ -45,10 +49,28 @@ export async function createJobAction(
     });
     jobId = job.id;
   } catch (error) {
-    return {
-      status: "error",
-      message: error instanceof Error ? error.message : "Could not reach the API gateway.",
-    };
+    /*
+     * A duplicate is not a failure, so it does not render as one.
+     *
+     * The gateway answers 409 with the id of the job that already asks this,
+     * which is exactly where the requester wanted to end up — they pressed the
+     * button twice because they could not tell whether the first press worked.
+     * Sending them to the answer is a better reply than telling them off.
+     *
+     * The id is only *captured* here; the redirect happens below, outside the
+     * try/catch, for the same reason the success path does.
+     */
+    const existing =
+      error instanceof AverisError && error.status === 409
+        ? (error.detail as { existingJobId?: string } | undefined)?.existingJobId
+        : undefined;
+    if (!existing) {
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Could not reach the API gateway.",
+      };
+    }
+    jobId = existing;
   }
 
   revalidatePath("/dashboard");

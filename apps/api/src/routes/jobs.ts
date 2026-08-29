@@ -12,6 +12,15 @@ import { CreateJobSchema, JobStatusSchema } from "@averis/types";
 import { requesterScope } from "../auth";
 import { paymentOf } from "../payments";
 
+/**
+ * How long an identical brief is treated as the same job.
+ *
+ * Long enough to cover an impatient double-submit and a browser back-button
+ * retry; short enough that asking the same question again tomorrow — when the
+ * corpus and the market have both moved — is a new job, which it genuinely is.
+ */
+const DUPLICATE_WINDOW_MS = 15 * 60_000;
+
 const ListQuery = z.object({
   status: JobStatusSchema.optional(),
   type: z.string().optional(),
@@ -25,9 +34,49 @@ export function registerJobRoutes(app: FastifyInstance, ctx: ProtocolContext): v
   app.post("/v1/jobs", async (request, reply) => {
     const parsed = CreateJobSchema.safeParse(request.body);
     if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message }));
+      // The first issue is the `error` string as well as being in `issues`,
+      // because that is the field clients surface. "Invalid job request" alone
+      // told a requester nothing about which field to fix.
       return reply.code(400).send({
-        error: "Invalid job request",
-        issues: parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+        error: issues[0]?.message ?? "Invalid job request",
+        issues,
+      });
+    }
+
+    /*
+     * The same brief, asked twice, is one job.
+     *
+     * A submit button that redirects on success is a submit button people
+     * press again when they are not sure it worked, and each press here buys a
+     * fresh cohort and a fresh settlement to answer a question that is already
+     * being answered. Rather than refuse outright, the existing job is handed
+     * back: 409 with its id, so the caller can go and look at the answer it
+     * already has instead of paying for a second copy of it.
+     *
+     * Scoped to the requester, because two accounts independently asking the
+     * same question is not duplication — they each want their own result, and
+     * one of them cannot see the other's job anyway.
+     *
+     * Only live jobs count. A brief that failed, or that resolved long enough
+     * ago to be stale, is a legitimate thing to ask again.
+     */
+    const duplicate = await prisma.job.findFirst({
+      where: {
+        ...requesterScope(request.principal),
+        query: parsed.data.query,
+        type: parsed.data.type,
+        status: { notIn: ["FAILED", "CANCELLED"] },
+        createdAt: { gt: new Date(Date.now() - DUPLICATE_WINDOW_MS) },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, status: true },
+    });
+    if (duplicate) {
+      return reply.code(409).send({
+        error: "An identical brief is already running or was just answered.",
+        existingJobId: duplicate.id,
+        existingStatus: duplicate.status,
       });
     }
 
