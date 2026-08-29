@@ -24,6 +24,21 @@ export interface OpenAIProviderConfig {
   model?: string | undefined;
   baseURL?: string | undefined;
   maxTokens?: number;
+  /**
+   * Vendor identifier reported by the adapter. An OpenAI-compatible gateway is
+   * not OpenAI: it must say its own name, because that name is what the agent
+   * registry stores, what `providerIsConfigured` is asked about, and what an
+   * `LLMError` is attributed to.
+   */
+  name?: string | undefined;
+  /**
+   * Per-model rate card, used only when the endpoint does not report what a
+   * call actually cost. Overridable because the rates below are OpenAI's, and
+   * a gateway in front of another vendor does not charge them.
+   */
+  rates?: Record<string, TokenRates> | undefined;
+  /** Rate used for a model absent from `rates`. */
+  fallbackRates?: TokenRates | undefined;
 }
 
 /**
@@ -34,15 +49,20 @@ export interface OpenAIProviderConfig {
  * path to the "local models later" requirement.
  */
 export class OpenAIProvider implements LLMProvider {
-  readonly name = "openai";
+  readonly name: string;
   readonly model: string;
   private readonly maxTokens: number;
   private readonly config: OpenAIProviderConfig;
+  private readonly rates: Record<string, TokenRates>;
+  private readonly fallbackRates: TokenRates;
   private client: unknown = null;
 
   constructor(config: OpenAIProviderConfig = {}) {
+    this.name = config.name || "openai";
     this.model = config.model || DEFAULT_MODEL;
     this.maxTokens = config.maxTokens ?? 16_000;
+    this.rates = config.rates ?? RATES;
+    this.fallbackRates = config.fallbackRates ?? FALLBACK_RATES;
     this.config = config;
   }
 
@@ -85,7 +105,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async complete(request: LLMRequest): Promise<LLMResponse> {
     const client = await this.getClient();
-    const rates = RATES[this.model] ?? FALLBACK_RATES;
+    const rates = this.rates[this.model] ?? this.fallbackRates;
 
     type ChatMessage = Parameters<
       typeof client.chat.completions.create
@@ -170,6 +190,24 @@ export class OpenAIProvider implements LLMProvider {
       const inputTokens = response.usage?.prompt_tokens ?? 0;
       const outputTokens = response.usage?.completion_tokens ?? 0;
 
+      /**
+       * A cost the endpoint reports is the one that was actually charged, so
+       * it always wins over the rate card. OpenAI itself reports no such
+       * field and falls through to `rates`; a gateway that bills per call —
+       * OpenRouter returns `usage.cost` on every response — is measured
+       * rather than estimated, which is the only way the budget figures on
+       * the dashboard mean what they say.
+       *
+       * Guarded on `> 0` as well as finiteness: a zero here is indistinguishable
+       * from an endpoint that omits the field, and silently reporting free
+       * inference would let a job spend without ever touching its budget.
+       */
+      const reported = (response.usage as { cost?: unknown } | undefined)?.cost;
+      const measuredCost =
+        typeof reported === "number" && Number.isFinite(reported) && reported > 0
+          ? reported
+          : null;
+
       return {
         text,
         toolCalls,
@@ -177,7 +215,7 @@ export class OpenAIProvider implements LLMProvider {
         usage: {
           inputTokens,
           outputTokens,
-          costUsd: computeCost({ inputTokens, outputTokens }, rates),
+          costUsd: measuredCost ?? computeCost({ inputTokens, outputTokens }, rates),
         },
         stopReason:
           choice.finish_reason === "tool_calls"

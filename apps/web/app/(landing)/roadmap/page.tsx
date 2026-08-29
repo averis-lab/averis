@@ -153,7 +153,7 @@ const PHASES: Phase[] = [
       {
         text: "A cohort bound to real models rather than the deterministic provider",
         state: "active",
-        note: "Every agent currently ships bound to a deterministic mock that derives claims from real retrieved evidence. That proves the coordination; it does not prove the intelligence. Per-agent binding and the credential guard are both in place, so what remains is a key and a run against it: an agent whose provider has none is now dropped before selection rather than failing after its budget was reserved.",
+        note: "Every agent currently ships bound to a deterministic mock that derives claims from real retrieved evidence. That proves the coordination; it does not prove the intelligence. What remains is a key and a run against it, and everything around that is now in place: a cohort can be spread across vendors on one credential through OpenRouter, `LLM_AGENT_MODELS` binds a model per agent by name, and spend is read from the cost each response reports rather than derived from a rate card that would be wrong for a routed model. An agent whose provider has no credential is dropped before selection rather than failing after its budget was reserved.",
       },
       {
         text: "Cohort benchmark: one, three and five agents on the same question",
