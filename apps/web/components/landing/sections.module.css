@@ -1222,7 +1222,7 @@
 
 .tickerInner {
   display: grid;
-  grid-template-columns: auto repeat(3, minmax(0, 1fr));
+  grid-template-columns: auto repeat(4, minmax(0, 1fr));
   align-items: stretch;
   border-top: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
   border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
@@ -1400,13 +1400,14 @@
     padding-right: max(20px, env(safe-area-inset-right));
   }
   /*
-   * Three rows on a phone: the brand, the headline price, then the two
-   * supporting figures side by side.
+   * Four rows on a phone: the brand, the headline price, the ether price, then
+   * the two dollar figures side by side.
    *
-   * Four cells abreast leaves each about eighty pixels, and the ether price is
-   * fifteen characters that must not be abbreviated — truncating a price is
-   * how a reader takes away a number that is wrong by orders of magnitude. The
-   * price earns its own full-width row for the same reason it is bigger.
+   * Cells abreast at this width leave each about eighty pixels, and the ether
+   * price is fifteen characters that must not be abbreviated — truncating a
+   * price is how a reader takes away a number that is wrong by orders of
+   * magnitude. So it gets a full row too, marked `data-wide`; the market cap
+   * and the all-time high are short enough to pair up beneath it.
    */
   .tickerInner { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tickerBrand {
@@ -1421,8 +1422,14 @@
     border-left: 0;
     border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
   }
+  .tickerCell[data-wide] {
+    grid-column: 1 / -1;
+    padding-left: 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--border-soft, rgba(255, 255, 255, 0.12));
+  }
   /* The first of the two on the bottom row is flush with the rail's edge. */
-  .tickerCell[data-lead] + .tickerCell { padding-left: 0; border-left: 0; }
+  .tickerCell[data-wide] + .tickerCell { padding-left: 0; border-left: 0; }
   .tickerValue { font-size: 13px; letter-spacing: -0.045em; }
   .tickerCell[data-lead] .tickerValue { font-size: 16px; }
   .tickerTerm { font-size: 8.5px; letter-spacing: 0.12em; }
