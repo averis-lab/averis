@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { WALLET_LOGIN, attempt, fetchJson, viewerApi } from "@/lib/api";
+import { attempt, fetchJson, viewerApi, walletLoginEnabled } from "@/lib/api";
 import { viewerToken } from "@/lib/session";
 import { pct, timeAgo } from "@/lib/format";
 import { ApiDown, Card, Empty, SectionHead, StatStrip, StatusBadge } from "@/components/ui";
@@ -93,7 +93,7 @@ export default async function Home() {
               required and absent: the action would reject the submission
               anyway, and offering a button that cannot work is worse than
               saying plainly what is missing. */}
-          {WALLET_LOGIN && !token ? (
+          {walletLoginEnabled() && !token ? (
             <ConnectGate />
           ) : (
             <Card className="p-5">

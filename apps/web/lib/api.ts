@@ -66,8 +66,20 @@ export async function viewerApi(): Promise<AverisClient> {
   return new AverisClient({ baseUrl: GATEWAY, apiKey: token, timeoutMs: 8_000 });
 }
 
-/** True when this installation requires a wallet to own what it creates. */
-export const WALLET_LOGIN = Boolean(process.env["PRIVY_APP_ID"]?.trim());
+/**
+ * True when this installation requires a wallet to own what it creates.
+ *
+ * A function, not a constant. This gates who may spend the installation's
+ * agents, and a module-scope constant is evaluated once when the module is
+ * first loaded — on a build machine that has no PRIVY_APP_ID, a folded `false`
+ * would leave the gate open in production and look exactly like a working one.
+ * Reading it per call costs nothing and cannot be baked in. It is the same
+ * reason the app layout reads the id at request time rather than as
+ * NEXT_PUBLIC_*.
+ */
+export function walletLoginEnabled(): boolean {
+  return Boolean(process.env["PRIVY_APP_ID"]?.trim());
+}
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: string };
 

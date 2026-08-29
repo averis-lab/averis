@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { describeQueryProblem, normalizeQuery } from "@averis/types";
-import { GatewayError, WALLET_LOGIN, sendJson } from "@/lib/api";
+import { GatewayError, sendJson, walletLoginEnabled } from "@/lib/api";
 import { viewerToken } from "@/lib/session";
 
 export type CreateJobState =
@@ -37,7 +37,7 @@ export async function createJobAction(
    * cookie buys a 401, not a job.
    */
   const token = await viewerToken();
-  if (WALLET_LOGIN && !token) {
+  if (walletLoginEnabled() && !token) {
     return {
       status: "error",
       message: "Connect a wallet first — a job is owned by the wallet that created it.",
