@@ -107,6 +107,36 @@ describe("what a real model actually returns", () => {
     expect(parsed.data?.claims[0]?.resolution ?? null).toBeNull();
   });
 
+  it("drops resolution criteria no clock could ever resolve", async () => {
+    // `deadline` is typed as a string and a real model uses that latitude —
+    // "2026-Q4", or a sentence. Carrying it through produced an Invalid Date
+    // at insert time and failed the write for every claim in the output.
+    class DatesInProse extends MockProvider {
+      override async complete(request: Parameters<MockProvider["complete"]>[0]) {
+        const answer = await super.complete(request);
+        if (!answer.structured) return answer;
+        const out = answer.structured as { claims: Array<Record<string, unknown>> };
+        out.claims[0] = {
+          ...out.claims[0],
+          resolution: {
+            metric: "win_rate",
+            operator: "gte",
+            threshold: 0.5,
+            source: "the corpus",
+            deadline: "when ETH data is ingested",
+          },
+        };
+        return { ...answer, structured: out };
+      }
+    }
+
+    const result = await runAgent(options({ provider: new DatesInProse() }));
+
+    // The claim survives; only the criteria nothing could act on are gone.
+    expect(result.claims.length).toBeGreaterThan(0);
+    expect(result.claims[0]?.resolution).toBeNull();
+  });
+
   it("keeps a non-scalar metric rather than discarding the analysis around it", () => {
     const parsed = ModelOutputSchema.safeParse({
       summary: "s",

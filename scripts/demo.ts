@@ -40,8 +40,17 @@ async function main(): Promise<void> {
 
   const engine = new JobEngine(ctx);
 
+  const arg = (name: string): string | undefined =>
+    process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+
+  // A job with no target names nothing tradable, so an automation can never
+  // act on one. `--target=ETH --type=asset-analysis` produces intelligence the
+  // execution layer can actually read.
+  const target = arg("target") ?? null;
+
   const job = CreateJobSchema.parse({
-    type: "dataset-evaluation",
+    type: arg("type") ?? "dataset-evaluation",
+    ...(target ? { target } : {}),
     query:
       process.argv.find((a) => a.startsWith("--query="))?.slice(8) ??
       "Assess whether the curated geopolitical and market intelligence in these Datanets is reliable enough for an autonomous trading agent to act on.",

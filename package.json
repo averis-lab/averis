@@ -35,6 +35,7 @@
     "benchmark": "tsx scripts/benchmark.ts",
     "key:create": "tsx scripts/api-key.ts",
     "settle": "tsx scripts/settle.ts",
+    "automation:tick": "tsx scripts/automation-tick.ts",
     "resolve": "tsx scripts/resolve.ts",
     "dev:all": "concurrently -k -n api,workers,web -c red,yellow,cyan \"npm:dev:api\" \"npm:dev:workers\" \"npm:dev\"",
     "test:integration": "vitest run --config vitest.integration.config.ts",

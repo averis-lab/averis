@@ -293,7 +293,16 @@ export async function runAgent(options: AgentRunOptions): Promise<AgentRunResult
       confidence: claim.confidence,
       fingerprint: claimFingerprint(claim.statement),
       evidence: resolved,
-      resolution: claim.resolution ?? null,
+      // A resolution whose deadline is not a date is not a resolution.
+      //
+      // `ResolutionCriteriaSchema` types `deadline` as a string, and a real
+      // model uses that latitude: it answers "when ETH data is ingested" or
+      // "2026-Q4" as readily as an ISO date. Carrying that through produced an
+      // Invalid Date at the point of insert, which failed the write for the
+      // whole output — every claim lost because one of them dated itself in
+      // prose. The claim survives; only its unusable criteria are dropped, so
+      // nothing downstream tries to schedule a resolution it can never run.
+      resolution: usableResolution(claim.resolution),
       // A claim that cited refs which do not exist is flagged rather than
       // dropped, so the evaluation engine can penalise the agent for it.
       unsupported: resolved.length === 0,
@@ -328,6 +337,15 @@ function accumulate(target: LLMUsage, add: LLMUsage): void {
 }
 
 /** Last-resort recovery for providers without native structured output. */
+/** The criteria, or null when nothing could ever resolve them. */
+function usableResolution(
+  resolution: z.infer<typeof ResolutionCriteriaSchema> | null | undefined,
+): z.infer<typeof ResolutionCriteriaSchema> | null {
+  if (!resolution) return null;
+  const deadline = new Date(resolution.deadline);
+  return Number.isNaN(deadline.getTime()) ? null : resolution;
+}
+
 function parseLoose(text: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
   const candidate = fenced?.[1] ?? text;

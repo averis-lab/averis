@@ -383,7 +383,7 @@ const PHASES: Phase[] = [
       {
         text: "A first bounded-autonomy surface, in paper mode",
         state: "active",
-        note: "A trading automation reads resolved jobs and opens paper positions under a policy its owner set. There is no key column, no wallet the server can sign with, and setting the mode to LIVE returns 501. It exercises the shape of a spending policy, never the money. It is a consumer of the protocol, not part of it.",
+        note: "A trading automation reads resolved jobs and opens paper positions under a policy its owner set. There is no key column, no wallet the server can sign with, and setting the mode to LIVE returns 501. It exercises the shape of a spending policy, never the money, and it is a consumer of the protocol rather than part of it. It has now run: it was autonomous in shape only, because `evaluate` judged one job named in an HTTP call and nothing ever handed it a job, so `automation:tick` is the half that finds them \u2014 sweeping exits first, since a position that should have closed is still holding a slot, and considering each verdict once, so a refusal is not re-decided every tick. Against real intelligence it declined both candidates and named every failing gate: no buy recommendation, confidence 55% against a floor of 65%, consensus 0% against 60%, one agent against a required three, unsupported claims above zero. What has still never happened is a position. Nothing has opened, so the mark-and-exit half of the lifecycle is unexercised \u2014 and it will stay that way until a cohort actually recommends buying something, which is not a threshold anyone here should tune to reach.",
       },
       { text: "Agent-to-agent commerce across networks", state: "planned" },
     ],
