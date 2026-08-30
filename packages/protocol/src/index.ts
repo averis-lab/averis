@@ -1,6 +1,7 @@
 export * from "./context";
 export * from "./ledger";
 export * from "./job-engine";
+export * from "./retry";
 export * from "./execution";
 export * from "./pipeline";
 export * from "./resolution";

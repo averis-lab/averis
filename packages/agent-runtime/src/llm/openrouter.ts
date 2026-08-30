@@ -49,6 +49,57 @@ export interface OpenRouterProviderConfig
 }
 
 export class OpenRouterProvider extends OpenAIProvider {
+  /**
+   * Never, because this provider does not know what it is talking to.
+   *
+   * Roughly one in three routable models cannot do structured output, and
+   * several of the free ones are in that third — which is exactly where
+   * someone trying this out will start. Worse, the failure is not uniform:
+   * OpenRouter drops the parameter for some providers, so the call succeeds
+   * and returns prose, while others hand it to an engine that rejects a
+   * keyword it has not implemented and fail outright. A real run hit both.
+   *
+   * Declaring it false does two things: the schema is described in the prompt,
+   * and `response_format` is not sent at all. One rule covers every routed
+   * model rather than a table of which vendor breaks in which way.
+   */
+  override readonly guaranteesStructuredOutput = false;
+
+  /**
+   * `supported_parameters` for every routable model, fetched once per process.
+   *
+   * Static because a cohort builds one provider per agent and they would
+   * otherwise each fetch the same catalogue. Held as the promise, so agents
+   * starting together share one request rather than racing.
+   */
+  private static catalogue: Promise<Map<string, Set<string>>> | null = null;
+
+  /**
+   * Whether *this* model can be sent a schema, read from the catalogue.
+   *
+   * Neither blanket answer survived a real run. Sending it always kills the
+   * models whose decoder rejects a keyword it has not implemented; withholding
+   * it always removes enforcement from the models that were honouring it, and
+   * those then answer in prose the parser cannot always recover. The only
+   * honest rule is per model, and OpenRouter publishes the answer.
+   *
+   * Unreachable catalogue means false: the prompt still carries the schema, so
+   * withholding the parameter costs reliability, while sending it to a model
+   * that cannot parse it costs the whole call.
+   */
+  protected override async structuredOutputSupported(): Promise<boolean> {
+    try {
+      const byModel = await (OpenRouterProvider.catalogue ??= fetchCatalogue(this.baseURL));
+      return byModel.get(this.model)?.has("structured_outputs") ?? false;
+    } catch {
+      OpenRouterProvider.catalogue = null;
+      return false;
+    }
+  }
+
+  /** Kept so the catalogue is read from the same endpoint the calls go to. */
+  private readonly baseURL: string;
+
   constructor(config: OpenRouterProviderConfig = {}) {
     /**
      * No default model. Every other adapter here can fall back to its vendor's
@@ -66,12 +117,36 @@ export class OpenRouterProvider extends OpenAIProvider {
       );
     }
 
-    super({
-      ...config,
-      name: "openrouter",
-      baseURL: config.baseURL || DEFAULT_BASE_URL,
-      rates: RATES,
-      fallbackRates: FALLBACK_RATES,
-    });
+    const baseURL = config.baseURL || DEFAULT_BASE_URL;
+    super({ ...config, name: "openrouter", baseURL, rates: RATES, fallbackRates: FALLBACK_RATES });
+    this.baseURL = baseURL;
   }
+}
+
+/**
+ * Reads `supported_parameters` for every model the gateway routes.
+ *
+ * One unauthenticated GET. It is deliberately not cached to disk: which
+ * parameters a model supports changes when its provider changes, and a stale
+ * yes is the expensive direction.
+ */
+async function fetchCatalogue(baseURL: string): Promise<Map<string, Set<string>>> {
+  const response = await fetch(`${baseURL.replace(/\/+$/, "")}/models`, {
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`model catalogue unavailable: HTTP ${response.status}`);
+
+  const body = (await response.json()) as {
+    data?: Array<{ id?: unknown; supported_parameters?: unknown }>;
+  };
+
+  const byModel = new Map<string, Set<string>>();
+  for (const entry of body.data ?? []) {
+    if (typeof entry.id !== "string") continue;
+    const parameters = Array.isArray(entry.supported_parameters)
+      ? entry.supported_parameters.filter((p): p is string => typeof p === "string")
+      : [];
+    byModel.set(entry.id, new Set(parameters));
+  }
+  return byModel;
 }

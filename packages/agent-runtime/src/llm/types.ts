@@ -15,6 +15,24 @@ export interface LLMProvider {
   complete(request: LLMRequest): Promise<LLMResponse>;
 
   /**
+   * Whether a `responseSchema` is certain to be honoured natively.
+   *
+   * Absent means yes, which is right for every adapter bound to one vendor's
+   * own models. It is `false` only for a gateway that routes to models it does
+   * not control: OpenRouter forwards a request to whichever provider serves
+   * the id, and silently drops parameters that provider does not support. The
+   * request still succeeds — it just comes back as prose, and the schema
+   * violation surfaces one layer up as a failed parse, after the tokens have
+   * been paid for.
+   *
+   * Callers that need JSON must therefore also put the schema in the prompt
+   * when this is `false`. That is one call, not a retry: a model that honours
+   * `response_format` ignores the extra instruction, and one that does not is
+   * told what shape to answer in rather than left to guess.
+   */
+  readonly guaranteesStructuredOutput?: boolean;
+
+  /**
    * Models this credential can actually reach.
    *
    * Optional because a provider may not expose a catalogue. Where it does,
@@ -76,8 +94,11 @@ export interface LLMRequest {
   maxTokens?: number;
   /**
    * When set, the provider must return JSON conforming to this schema.
-   * Providers that support native structured output use it; the rest fall
-   * back to schema-in-prompt plus a parse-and-repair pass.
+   *
+   * Providers that support native structured output use it. Where a provider
+   * cannot promise that — see {@link LLMProvider.guaranteesStructuredOutput} —
+   * the caller describes the schema in the prompt instead, and the reply is
+   * recovered from the text.
    */
   responseSchema?: { name: string; schema: z.ZodType } | undefined;
   /**

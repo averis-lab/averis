@@ -4,10 +4,12 @@ import {
   createLLMProvider,
   providerIsConfigured,
   runAgent,
+  LLMError,
   type AgentRunResult,
   type DatanetRubric,
 } from "@averis/agent-runtime";
 import { QUEUES } from "@averis/queue";
+import { runWithRetries } from "./retry";
 import { claimFingerprint, type CreateJob, type Datanet } from "@averis/types";
 import type { ProtocolContext } from "./context";
 import { JobEngine, JobEngineError } from "./job-engine";
@@ -99,7 +101,10 @@ export class ExecutionPipeline {
         providers: [
           ...new Set(
             allCandidates
-              .filter((agent) => !providerIsConfigured(agent.modelProvider, this.ctx.env))
+              .filter(
+                (agent) =>
+                  !providerIsConfigured(agent.modelProvider, this.ctx.env),
+              )
               .map((agent) => agent.modelProvider),
           ),
         ],
@@ -107,7 +112,9 @@ export class ExecutionPipeline {
     }
 
     const budgetPerAgent =
-      job.requiredAgents > 0 ? toNumber(job.budget) / job.requiredAgents : toNumber(job.budget);
+      job.requiredAgents > 0
+        ? toNumber(job.budget) / job.requiredAgents
+        : toNumber(job.budget);
 
     const selected = this.ctx.selector.select(candidates, {
       requiredCapabilities: job.requiredCapabilities,
@@ -143,10 +150,15 @@ export class ExecutionPipeline {
       skipDuplicates: true,
     });
 
-    await this.engine.transition(jobId, "ASSIGNED", `selected ${selected.length} agent(s)`, {
-      agents: selected.map((s) => s.agentId),
-      datanetIds,
-    });
+    await this.engine.transition(
+      jobId,
+      "ASSIGNED",
+      `selected ${selected.length} agent(s)`,
+      {
+        agents: selected.map((s) => s.agentId),
+        datanetIds,
+      },
+    );
     await this.engine.transition(jobId, "RUNNING", "agents executing");
 
     // ─── Parallel execution ─────────────────────────────────────────────────
@@ -213,7 +225,10 @@ export class ExecutionPipeline {
           failed++;
           this.ctx.logger.warn("agent run failed", {
             jobId,
-            error: outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason),
+            error:
+              outcome.reason instanceof Error
+                ? outcome.reason.message
+                : String(outcome.reason),
           });
         }
       }
@@ -222,13 +237,21 @@ export class ExecutionPipeline {
     }
 
     if (succeeded === 0) {
-      await this.engine.fail(jobId, "every agent in the cohort failed to produce output", {
-        attempted: assignments.length,
-      });
+      await this.engine.fail(
+        jobId,
+        "every agent in the cohort failed to produce output",
+        {
+          attempted: assignments.length,
+        },
+      );
       return { jobId, assignments: assignments.length, succeeded, failed };
     }
 
-    await this.engine.transition(jobId, "SUBMITTED", `${succeeded} of ${assignments.length} agents submitted`);
+    await this.engine.transition(
+      jobId,
+      "SUBMITTED",
+      `${succeeded} of ${assignments.length} agents submitted`,
+    );
     await this.ctx.queue.enqueue(
       QUEUES.evaluation,
       "evaluate",
@@ -251,7 +274,11 @@ export class ExecutionPipeline {
       agentId: string;
       agentName: string;
       agentDescription: string;
-      capabilities: Array<{ domain: string; skill: string | null; declared: number }>;
+      capabilities: Array<{
+        domain: string;
+        skill: string | null;
+        declared: number;
+      }>;
       modelProvider: string;
       modelName: string;
       tools: string[];
@@ -294,25 +321,41 @@ export class ExecutionPipeline {
           detail: { agentName: agent.agentName },
         },
         async () => {
-          const run = await runAgent({
-            jobId: job.jobId,
-            agentId: agent.agentId,
-            agentName: agent.agentName,
-            agentDescription: agent.agentDescription,
-            capabilities: agent.capabilities,
-            jobType: job.type,
-            query: job.query,
-            target: job.target,
-            minimumConfidence: job.minimumConfidence,
-            datanetIds: job.datanetIds,
-            rubrics: job.rubrics,
-            provider,
-            registry: this.ctx.tools,
-            allowedTools: agent.tools.length > 0 ? agent.tools : this.ctx.tools.names(),
-            data: this.ctx.data,
-            signal,
-            logger: (message, detail) => this.ctx.logger.info(message, { agent: agent.agentName, ...detail }),
-          });
+          const run = await runWithRetries(
+            () =>
+              runAgent({
+                jobId: job.jobId,
+                agentId: agent.agentId,
+                agentName: agent.agentName,
+                agentDescription: agent.agentDescription,
+                capabilities: agent.capabilities,
+                jobType: job.type,
+                query: job.query,
+                target: job.target,
+                minimumConfidence: job.minimumConfidence,
+                datanetIds: job.datanetIds,
+                rubrics: job.rubrics,
+                provider,
+                registry: this.ctx.tools,
+                allowedTools:
+                  agent.tools.length > 0 ? agent.tools : this.ctx.tools.names(),
+                data: this.ctx.data,
+                signal,
+                logger: (message, detail) =>
+                  this.ctx.logger.info(message, {
+                    agent: agent.agentName,
+                    ...detail,
+                  }),
+              }),
+            {
+              signal,
+              onRetry: (detail) =>
+                this.ctx.logger.warn("agent run failed, retrying", {
+                  agent: agent.agentName,
+                  ...detail,
+                }),
+            },
+          );
 
           return { result: run, actualUsd: run.usage.costUsd };
         },
@@ -363,103 +406,161 @@ export class ExecutionPipeline {
     // "Transaction already closed" under load before.
     const dataItemIds = await this.cacheDataItems(run.evidence);
 
-    await prisma.$transaction(async (tx) => {
-      // Evidence is deduplicated per job by content hash, so two agents
-      // citing the same upstream item share one provenance row.
-      //
-      // This must be an atomic insert-or-ignore, not an upsert. Agents in a
-      // cohort run in parallel and routinely retrieve the same pods; two
-      // concurrent transactions each check "does it exist", both see no, and
-      // both insert — and one loses its entire output to a unique-constraint
-      // violation. `createMany({ skipDuplicates })` compiles to
-      // ON CONFLICT DO NOTHING, which the database resolves atomically.
-      if (run.evidence.length > 0) {
-        await tx.evidence.createMany({
-          data: run.evidence.map((item) => ({
+    await prisma.$transaction(
+      async (tx) => {
+        // Evidence is deduplicated per job by content hash, so two agents
+        // citing the same upstream item share one provenance row.
+        //
+        // This must be an atomic insert-or-ignore, not an upsert. Agents in a
+        // cohort run in parallel and routinely retrieve the same pods; two
+        // concurrent transactions each check "does it exist", both see no, and
+        // both insert — and one loses its entire output to a unique-constraint
+        // violation. `createMany({ skipDuplicates })` compiles to
+        // ON CONFLICT DO NOTHING, which the database resolves atomically.
+        if (run.evidence.length > 0) {
+          await tx.evidence.createMany({
+            data: run.evidence.map((item) => ({
+              jobId,
+              type: item.type,
+              source: item.source,
+              title: item.title,
+              content: item.content?.slice(0, 20_000) ?? null,
+              contentHash: String(item.metadata["contentHash"] ?? item.id),
+              metadata: item.metadata as object,
+              reliability: item.reliability,
+              retrievedAt: item.timestamp,
+              dataItemId: dataItemIds.get(item.source) ?? null,
+            })),
+            skipDuplicates: true,
+          });
+        }
+
+        // Read back the ids, which now cover both rows this agent inserted and
+        // rows a concurrent agent inserted first.
+        const evidenceRows = await tx.evidence.findMany({
+          where: {
             jobId,
-            type: item.type,
-            source: item.source,
-            title: item.title,
-            content: item.content?.slice(0, 20_000) ?? null,
-            contentHash: String(item.metadata["contentHash"] ?? item.id),
-            metadata: item.metadata as object,
-            reliability: item.reliability,
-            retrievedAt: item.timestamp,
-            dataItemId: dataItemIds.get(item.source) ?? null,
-          })),
-          skipDuplicates: true,
-        });
-      }
-
-      // Read back the ids, which now cover both rows this agent inserted and
-      // rows a concurrent agent inserted first.
-      const evidenceRows = await tx.evidence.findMany({
-        where: {
-          jobId,
-          contentHash: {
-            in: run.evidence.map((item) => String(item.metadata["contentHash"] ?? item.id)),
+            contentHash: {
+              in: run.evidence.map((item) =>
+                String(item.metadata["contentHash"] ?? item.id),
+              ),
+            },
           },
-        },
-        select: { id: true, source: true },
-      });
-      const evidenceIdByKey = new Map(evidenceRows.map((row) => [row.source, row.id]));
+          select: { id: true, source: true },
+        });
+        const evidenceIdByKey = new Map(
+          evidenceRows.map((row) => [row.source, row.id]),
+        );
 
-      const output = await tx.agentOutput.create({
-        data: {
-          jobId,
-          agentId,
-          assignmentId,
-          summary: run.summary,
-          confidence: run.confidence,
-          modelProvider: binding.provider,
-          modelName: binding.model,
-          metrics: run.metrics as object,
-          recommendation: run.recommendation === null ? Prisma.JsonNull : (run.recommendation as object),
-          risks: run.risks as object,
-          tokensIn: run.usage.inputTokens,
-          tokensOut: run.usage.outputTokens,
-          costUsd: toDecimalInput(run.usage.costUsd),
-          durationMs: run.durationMs,
-          toolCalls: run.toolCalls as object,
-        },
-        select: { id: true },
-      });
-
-      for (const [position, claim] of run.claims.entries()) {
-        const claimRow = await tx.claim.create({
+        const output = await tx.agentOutput.create({
           data: {
-            outputId: output.id,
-            kind: claim.kind,
-            statement: claim.statement,
-            confidence: claim.confidence,
-            fingerprint: claim.fingerprint || claimFingerprint(claim.statement),
-            position,
-            ...(claim.resolution
-              ? {
-                  prediction: {
-                    create: {
-                      statement: claim.statement,
-                      confidence: claim.confidence,
-                      criteria: claim.resolution as object,
-                      deadline: new Date(claim.resolution.deadline),
-                    },
-                  },
-                }
-              : {}),
+            jobId,
+            agentId,
+            assignmentId,
+            summary: run.summary,
+            confidence: run.confidence,
+            modelProvider: binding.provider,
+            modelName: binding.model,
+            metrics: run.metrics as object,
+            recommendation:
+              run.recommendation === null
+                ? Prisma.JsonNull
+                : (run.recommendation as object),
+            risks: run.risks as object,
+            tokensIn: run.usage.inputTokens,
+            tokensOut: run.usage.outputTokens,
+            costUsd: toDecimalInput(run.usage.costUsd),
+            durationMs: run.durationMs,
+            toolCalls: run.toolCalls as object,
           },
           select: { id: true },
         });
 
-        const links = claim.evidence
-          .map((item) => evidenceIdByKey.get(item.source))
-          .filter((id): id is string => id !== undefined)
-          .map((evidenceId) => ({ claimId: claimRow.id, evidenceId, stance: 1 }));
+        // Three statements, whatever the claim count. The loop this replaces made
+        // two round trips per claim, and the note above about round trips held
+        // inside an interactive transaction applies here exactly as it does to
+        // the data-item cache: with a remote database and an agent that returned
+        // seven claims, the default 5s interactive budget was gone before the
+        // last one was written and the whole output was lost. That failure only
+        // appears against a real model, because the deterministic provider
+        // returns fewer claims and the round trips were never the slow part.
+        if (run.claims.length > 0) {
+          const claimRows = await tx.claim.createManyAndReturn({
+            data: run.claims.map((claim, position) => ({
+              outputId: output.id,
+              kind: claim.kind,
+              statement: claim.statement,
+              confidence: claim.confidence,
+              fingerprint:
+                claim.fingerprint || claimFingerprint(claim.statement),
+              position,
+            })),
+            select: { id: true, position: true },
+          });
 
-        if (links.length > 0) {
-          await tx.claimEvidence.createMany({ data: links, skipDuplicates: true });
+          // Keyed on position rather than on array order: `createManyAndReturn`
+          // promises the rows, not the order, and a claim linked to another
+          // claim's evidence would be a provenance error rather than a crash.
+          const claimIdByPosition = new Map(
+            claimRows.map((row) => [row.position, row.id]),
+          );
+
+          const links = run.claims.flatMap((claim, position) => {
+            const claimId = claimIdByPosition.get(position);
+            if (!claimId) return [];
+            return claim.evidence
+              .map((item) => evidenceIdByKey.get(item.source))
+              .filter((id): id is string => id !== undefined)
+              .map((evidenceId) => ({ claimId, evidenceId, stance: 1 }));
+          });
+
+          if (links.length > 0) {
+            await tx.claimEvidence.createMany({
+              data: links,
+              skipDuplicates: true,
+            });
+          }
+
+          const predictions = run.claims.flatMap((claim, position) => {
+            const claimId = claimIdByPosition.get(position);
+            if (!claimId || !claim.resolution) return [];
+            return [
+              {
+                claimId,
+                statement: claim.statement,
+                confidence: claim.confidence,
+                criteria: claim.resolution as object,
+                deadline: new Date(claim.resolution.deadline),
+              },
+            ];
+          });
+
+          if (predictions.length > 0) {
+            await tx.prediction.createMany({ data: predictions });
+          }
         }
-      }
-    });
+      },
+      {
+        /*
+         * Prisma's 5s default assumes a database on the same machine. This one
+         * writes an agent's entire output — evidence, the output row, every
+         * claim, every link — over a pooled connection to a managed provider
+         * a continent away, where a single statement's round trip is tens of
+         * milliseconds rather than microseconds.
+         *
+         * Batching the claim writes cut this from 2N statements to three and
+         * was still not enough: a real cohort of three agents writing at once
+         * lost outputs on the commit itself. Whichever agent loses that race
+         * loses everything it just paid a model to produce, and the job merges
+         * a cohort smaller than the one that actually did the work.
+         *
+         * `maxWait` covers acquiring a connection when all three agents are
+         * asking at once; `timeout` covers the writes themselves.
+         */
+        maxWait: 15_000,
+        timeout: 30_000,
+      },
+    );
   }
 
   /**
@@ -489,12 +590,15 @@ export class ExecutionPipeline {
         ? datanets.filter((d) => d.domains.some((domain) => wanted.has(domain)))
         : [];
 
-    const pool = byDomain.length > 0 ? byDomain : this.textMatch(datanets, query);
+    const pool =
+      byDomain.length > 0 ? byDomain : this.textMatch(datanets, query);
 
-    return pool
-      // Prefer datanets whose curators actually corroborate their content.
-      .sort((a, b) => b.curation.approvalRate - a.curation.approvalRate)
-      .slice(0, 5);
+    return (
+      pool
+        // Prefer datanets whose curators actually corroborate their content.
+        .sort((a, b) => b.curation.approvalRate - a.curation.approvalRate)
+        .slice(0, 5)
+    );
   }
 
   /** Caches the datanets a job used, so its evidence keeps its provenance. */
@@ -506,7 +610,12 @@ export class ExecutionPipeline {
 
     for (const datanet of datanets) {
       await prisma.datanet.upsert({
-        where: { dataSourceId_externalId: { dataSourceId: sourceId, externalId: datanet.id } },
+        where: {
+          dataSourceId_externalId: {
+            dataSourceId: sourceId,
+            externalId: datanet.id,
+          },
+        },
         create: {
           dataSourceId: sourceId,
           externalId: datanet.id,
@@ -558,11 +667,15 @@ export class ExecutionPipeline {
    * any other tool has no upstream row to point at; both keep a null link
    * rather than getting a synthetic one.
    */
-  private async cacheDataItems(evidence: AgentRunResult["evidence"]): Promise<Map<string, string>> {
+  private async cacheDataItems(
+    evidence: AgentRunResult["evidence"],
+  ): Promise<Map<string, string>> {
     const byLocator = new Map<string, string>();
 
     const pods = evidence.filter(
-      (item) => item.type === "REPPO_POD" && typeof item.metadata["externalId"] === "string",
+      (item) =>
+        item.type === "REPPO_POD" &&
+        typeof item.metadata["externalId"] === "string",
     );
     if (pods.length === 0) return byLocator;
 
@@ -574,16 +687,25 @@ export class ExecutionPipeline {
     // A pod whose datanet is somehow not in scope keeps a null link — the item
     // is still real provenance, it just has no local parent to hang from.
     const externalDatanetIds = [
-      ...new Set(pods.map((item) => asString(item.metadata["datanetId"])).filter(isPresent)),
+      ...new Set(
+        pods
+          .map((item) => asString(item.metadata["datanetId"]))
+          .filter(isPresent),
+      ),
     ];
     const datanetRows =
       externalDatanetIds.length > 0
         ? await prisma.datanet.findMany({
-            where: { dataSourceId: sourceId, externalId: { in: externalDatanetIds } },
+            where: {
+              dataSourceId: sourceId,
+              externalId: { in: externalDatanetIds },
+            },
             select: { id: true, externalId: true },
           })
         : [];
-    const localDatanetId = new Map(datanetRows.map((row) => [row.externalId, row.id]));
+    const localDatanetId = new Map(
+      datanetRows.map((row) => [row.externalId, row.id]),
+    );
 
     // Bounded rather than one flat `Promise.all`: an agent can cite dozens of
     // pods and a cohort runs three of these at once, which is enough open
@@ -598,7 +720,9 @@ export class ExecutionPipeline {
 
           const externalDatanetId = asString(item.metadata["datanetId"]);
           const values = {
-            datanetId: externalDatanetId ? (localDatanetId.get(externalDatanetId) ?? null) : null,
+            datanetId: externalDatanetId
+              ? (localDatanetId.get(externalDatanetId) ?? null)
+              : null,
             title: item.title ?? externalId,
             content: item.content?.slice(0, 20_000) ?? null,
             url: asString(item.metadata["url"]),
@@ -621,7 +745,9 @@ export class ExecutionPipeline {
           // unique is the arbiter — one statement, not a check followed by a
           // write — and both writers are copying the same upstream row anyway.
           const row = await prisma.dataItem.upsert({
-            where: { dataSourceId_externalId: { dataSourceId: sourceId, externalId } },
+            where: {
+              dataSourceId_externalId: { dataSourceId: sourceId, externalId },
+            },
             create: { dataSourceId: sourceId, externalId, ...values },
             update: { ...values, syncedAt: new Date() },
             select: { id: true },
@@ -678,11 +804,13 @@ function asDate(value: unknown): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-const isPresent = <T>(value: T | null | undefined): value is T => value !== null && value !== undefined;
+const isPresent = <T>(value: T | null | undefined): value is T =>
+  value !== null && value !== undefined;
 
 function chunk<T>(items: T[], size: number): T[][] {
   const batches: T[][] = [];
-  for (let i = 0; i < items.length; i += size) batches.push(items.slice(i, i + size));
+  for (let i = 0; i < items.length; i += size)
+    batches.push(items.slice(i, i + size));
   return batches;
 }
 

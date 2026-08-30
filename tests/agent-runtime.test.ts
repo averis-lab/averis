@@ -7,6 +7,7 @@ import {
   providerIsConfigured,
   runAgent,
   createHttpTool,
+  ModelOutputSchema,
 } from "@averis/agent-runtime";
 import { ReppoFixtureProvider } from "@averis/reppo-adapter";
 import type { Capability, DataProvider } from "@averis/types";
@@ -52,6 +53,109 @@ describe("evidence collector", () => {
 
   it("reports zero reliability for a claim citing nothing", () => {
     expect(new EvidenceCollector("r").reliabilityOf([])).toBe(0);
+  });
+});
+
+/**
+ * A gateway that lost the structured-output parameter.
+ *
+ * This is what OpenRouter does with a model whose provider does not support
+ * `response_format`: it forwards the call, drops the parameter, and returns
+ * prose. Nothing errors. So the reply here carries the right object as fenced
+ * text with `structured` absent — the exact shape the runtime has to survive.
+ */
+class ProseOnlyGateway extends MockProvider {
+  readonly guaranteesStructuredOutput = false;
+  /** Every request it was given, so the prompt can be inspected. */
+  readonly seen: Array<{ system: string; messages: unknown[] }> = [];
+
+  override async complete(request: Parameters<MockProvider["complete"]>[0]) {
+    this.seen.push({ system: request.system, messages: request.messages });
+    const answer = await super.complete(request);
+    if (!answer.structured) return answer;
+    const { structured, ...rest } = answer;
+    return { ...rest, text: "Here is my analysis.\n\n```json\n" + JSON.stringify(structured) + "\n```" };
+  }
+}
+
+/** The same thing, but honest about honouring the schema natively. */
+class RecordingProvider extends MockProvider {
+  readonly seen: Array<{ messages: unknown[] }> = [];
+
+  override async complete(request: Parameters<MockProvider["complete"]>[0]) {
+    this.seen.push({ messages: request.messages });
+    return super.complete(request);
+  }
+}
+
+const lastUserText = (seen: Array<{ messages: unknown[] }>): string => {
+  const messages = seen[seen.length - 1]!.messages as Array<{ role: string; content: string }>;
+  return [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+};
+
+describe("what a real model actually returns", () => {
+  it("accepts a claim that says it has no resolution criteria", () => {
+    // `null` and an absent key mean the same thing here, and the runtime
+    // stores null for both. Refusing one of them cost a whole agent's output
+    // on the first run against real models.
+    const parsed = ModelOutputSchema.safeParse({
+      summary: "s",
+      confidence: 0.5,
+      claims: [{ statement: "a claim", confidence: 0.5, resolution: null }],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.data?.claims[0]?.resolution ?? null).toBeNull();
+  });
+
+  it("keeps a non-scalar metric rather than discarding the analysis around it", () => {
+    const parsed = ModelOutputSchema.safeParse({
+      summary: "s",
+      confidence: 0.5,
+      claims: [{ statement: "a claim", confidence: 0.5 }],
+      metrics: { refs: [0, 3, 7], ratio: 0.5, note: "n", flagged: true, missing: null },
+    });
+    expect(parsed.success).toBe(true);
+    // Rendered to a scalar, so everything downstream sees what it always saw.
+    expect(parsed.data?.metrics).toEqual({
+      refs: "[0,3,7]",
+      ratio: 0.5,
+      note: "n",
+      flagged: "true",
+    });
+  });
+});
+
+describe("structured output a gateway may have dropped", () => {
+  it("says nothing extra to a provider that honours the schema natively", async () => {
+    const provider = new RecordingProvider();
+    await runAgent(options({ provider }));
+
+    // The default is silence: an adapter bound to its own vendor's models is
+    // not made to carry a schema the API already enforces.
+    expect(lastUserText(provider.seen)).not.toContain("JSON Schema");
+  });
+
+  it("states the schema in the prompt when the provider cannot promise it", async () => {
+    const provider = new ProseOnlyGateway();
+    await runAgent(options({ provider }));
+
+    const asked = lastUserText(provider.seen);
+    expect(asked).toContain("JSON Schema");
+    // The shape itself, not merely a mention of one.
+    expect(asked).toContain("claims");
+    expect(asked).toContain("evidenceRefs");
+  });
+
+  it("recovers a full result from prose, so a dropped parameter is not a failed job", async () => {
+    const result = await runAgent(options({ provider: new ProseOnlyGateway() }));
+
+    // Everything the merge needs survived the round trip through text.
+    expect(result.summary.length).toBeGreaterThan(0);
+    expect(result.claims.length).toBeGreaterThan(0);
+    expect(result.confidence).toBeGreaterThan(0);
+    // And the claims still cite evidence the runtime actually retrieved,
+    // which is the property that must not be traded away for compatibility.
+    expect(result.claims.some((claim) => claim.evidence.length > 0)).toBe(true);
   });
 });
 

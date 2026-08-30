@@ -51,6 +51,19 @@ interface Phase {
   goal: ReactNode;
 }
 
+/**
+ * Counts by state.
+ *
+ * Derived from the items rather than written down beside them, so the summary
+ * cannot drift from the list it summarises \u2014 which is the only failure mode
+ * a progress number has.
+ */
+function tally(items: Item[]): Record<State, number> {
+  const counts: Record<State, number> = { shipped: 0, active: 0, planned: 0 };
+  for (const item of items) counts[item.state] += 1;
+  return counts;
+}
+
 const MARK: Record<State, { className: string; label: string }> = {
   shipped: { className: s.markShipped!, label: "shipped" },
   active: { className: s.markActive!, label: "in progress" },
@@ -152,8 +165,8 @@ const PHASES: Phase[] = [
       },
       {
         text: "A cohort bound to real models rather than the deterministic provider",
-        state: "active",
-        note: "Every agent currently ships bound to a deterministic mock that derives claims from real retrieved evidence. That proves the coordination; it does not prove the intelligence. What remains is a key and a run against it, and everything around that is now in place: a cohort can be spread across vendors on one credential through OpenRouter, `LLM_AGENT_MODELS` binds a model per agent by name, and spend is read from the cost each response reports rather than derived from a rate card that would be wrong for a routed model. An agent whose provider has no credential is dropped before selection rather than failing after its budget was reserved.",
+        state: "shipped",
+        note: "Run against live Reppo Datanets on routed models through OpenRouter: two agents, 29 claims, every one of them citing evidence the runtime had actually retrieved, merged and resolved. The binding is recorded per output, so the cohort measurement is a fact about what answered rather than about the registry today. Three things only a real model could surface. The write that saves an agent\u2019s output ran 2N statements inside a 5s transaction and lost whole outputs to a remote database. A gateway can answer 200 with no completion at all, which read as a TypeError and was filed as permanent, retiring an agent over an upstream hiccup. And the output contract was stricter than the models it judged \u2014 it refused `resolution: null`, the very value the runtime stores for a claim with no criteria. The schema parameter itself has no blanket answer: sending it always kills models whose decoder rejects a keyword it has not implemented, withholding it always strips enforcement from models that were honouring it, so it is now decided per model from the gateway\u2019s own catalogue. What this has not done is fill a cohort. Every adapter had been computing `LLMError.retryable` and nothing read it, so one 502 retired an agent for the whole job and the merge booked the shortfall as weaker consensus \u2014 a vendor hiccup arriving as worse intelligence. Transient failures are now retried inside the agent\u2019s existing budget reservation, bounded and short, and the third seat still failed on all three attempts: that vendor is down rather than flaky. Replacing that vendor produced the run this item existed for: two agents from two different labs, evenly weighted, `effectiveOrigins` exactly 2 and monoculture false \u2014 the first cohort here whose agreement was not partly an artifact of one model. One of the two supports structured output natively and the other does not, so both halves of that path ran inside a single job. The third seat still failed, on a model that returned text no parser could recover into the schema. Free-tier models are what the credentials reach; the mechanism is proven, its reliability is the vendors\u2019."
       },
       {
         text: "Cohort benchmark: one, three and five agents on the same question",
@@ -168,7 +181,7 @@ const PHASES: Phase[] = [
       {
         text: "Authenticated reads for permissioned Datanets",
         state: "active",
-        note: "The adapter now reads the authenticated surface as well as the public one: a datanet that is permissioned or unpublished is absent from the public listing and resolves through `/me/*` instead, and it is listed first so a page limit cannot drop the only rows the credential was configured to reach. Two honest limits keep this in progress rather than shipped. It has never run against a live authenticated account, so those envelopes are written to the documentation rather than verified against a real response. And `/me/*` is scoped to the identity, not the datanet — a permissioned datanet is readable to the extent the credential owns it, not in general.",
+        note: "The adapter now reads the authenticated surface as well as the public one: a datanet that is permissioned or unpublished is absent from the public listing and resolves through `/me/*` instead, and it is listed first so a page limit cannot drop the only rows the credential was configured to reach. Two honest limits keep this in progress rather than shipped. The routes themselves are confirmed \u2014 `/me/subnets` and `/me/pods` answer 401 rather than 404, so the adapter is asking for something that exists. What no test can reach is the shape behind that 401: every test here mocks the transport, and the envelopes are still taken from the documentation rather than from a real authenticated response. That is one credential away, and nothing short of one will settle it. And `/me/*` is scoped to the identity, not the datanet — a permissioned datanet is readable to the extent the credential owns it, not in general.",
       },
       {
         text: "Distributed tracing across the gateway and the workers",
@@ -198,6 +211,15 @@ const PHASES: Phase[] = [
         job at a time. Reputation is scored from resolved outcomes and deterministic evaluation,
         never from capital, and it becomes multidimensional, because an agent strong on
         smart-contract security may be weak on macroeconomic forecasting.
+        <br />
+        <br />
+        Every deliverable below has run end to end, and the phase is <em>still</em> in progress,
+        which is worth explaining rather than leaving as an apparent contradiction. They ran
+        against a paused verification agent, not against the cohort. A track record is worth
+        exactly what the observations in it are worth, and the cohort cannot begin earning real
+        ones until it is bound to real models &mdash; which is phase 1&rsquo;s remaining work,
+        not this phase&rsquo;s. The machinery is finished; the history it exists to accumulate
+        has not started.
       </>
     ),
     flow: ["Agent", "Intelligence", "Evaluation", "Performance history", "Reputation", "Future weighting"],
@@ -235,7 +257,7 @@ const PHASES: Phase[] = [
       {
         text: "More oracles: price and on-chain resolution",
         state: "shipped",
-        note: "Both now exist beside curation. A price prediction reads two keyless public venues and is refused if they disagree by more than a percent, because choosing between two conflicting prices is a coin flip that would land in an agent's accuracy as though it were a measurement. An on-chain prediction reads block height, a native balance, or an ERC-20 supply or holder balance, scaled by the decimals the contract itself reports. Both distinguish \u201ccannot be answered\u201d from \u201ccould not be reached\u201d: the first settles as UNRESOLVABLE, the second leaves the prediction pending for the next sweep, so a dropped connection no longer deletes an observation an agent had earned. Two limits keep this in progress. Both read the present rather than the deadline \u2014 public nodes are pruned and spot endpoints have no history \u2014 so a reading is refused once the sweep falls too far behind, and both have now scored real predictions end to end — price against live ETH-USD, chain against Robinhood Chain block height and ERC-20 supply.",
+        note: "Both now exist beside curation. A price prediction reads two keyless public venues and is refused if they disagree by more than a percent, because choosing between two conflicting prices is a coin flip that would land in an agent's accuracy as though it were a measurement. An on-chain prediction reads block height, a native balance, or an ERC-20 supply or holder balance, scaled by the decimals the contract itself reports. Both distinguish \u201ccannot be answered\u201d from \u201ccould not be reached\u201d: the first settles as UNRESOLVABLE, the second leaves the prediction pending for the next sweep, so a dropped connection no longer deletes an observation an agent had earned. Both have scored real predictions end to end \u2014 price against live ETH-USD, chain against Robinhood Chain block height and ERC-20 supply \u2014 which is what marks this shipped rather than merely written. One limit is structural and stays: both read the present rather than the deadline, because public nodes are pruned and spot endpoints have no history, so a reading is refused once the sweep falls too far behind rather than answered from the wrong moment.",
       },
     ],
     goal: (
@@ -374,6 +396,10 @@ const PHASES: Phase[] = [
   },
 ];
 
+/** Every deliverable on the page, and the totals the masthead reports. */
+const ALL_ITEMS: Item[] = PHASES.flatMap((phase) => phase.items);
+const TOTAL = tally(ALL_ITEMS);
+
 function Flow({ steps }: { steps: string[] }) {
   return (
     <div className={s.flow}>
@@ -418,6 +444,7 @@ export default function RoadmapPage() {
               ["Revised", "29 Aug 2026"],
               ["Focus", "Phase 1"],
               ["Ordering", "Dependency, not date"],
+              ["Run end to end", `${TOTAL.shipped} of ${ALL_ITEMS.length}`],
             ].map(([label, value]) => (
               <div key={label}>
                 <dt className={s.metaLabel}>{label}</dt>
@@ -467,6 +494,9 @@ export default function RoadmapPage() {
                     <span className={s.phaseWhen}>{phase.requires}</span>
                     <span className={`${s.status} ${STATUS[phase.status]}`}>
                       {phase.statusLabel}
+                    </span>
+                    <span className={s.phaseTally}>
+                      {tally(phase.items).shipped} / {phase.items.length} run end to end
                     </span>
                   </aside>
 
