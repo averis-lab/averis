@@ -13,6 +13,7 @@
     "@averis/sdk": "*",
     "@averis/types": "*",
     "@privy-io/react-auth": "^3.37.4",
+    "@prxvt/sdk": "^1.0.2",
     "dotenv": "^17.4.2",
     "next": "16.3.1",
     "react": "19.2.8",

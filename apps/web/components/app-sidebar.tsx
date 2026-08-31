@@ -46,6 +46,7 @@ const GROUPS: Array<{ label: string; items: NavItem[] }> = [
       { href: "/dashboard", label: "Jobs", icon: JobsIcon, also: ["/jobs"] },
       { href: "/agents", label: "Agents", icon: AgentsIcon },
       { href: "/datanets", label: "Datanets", icon: DatanetsIcon },
+      { href: "/privacy", label: "Private send", icon: PrivacyIcon },
     ],
   },
   {
@@ -291,6 +292,16 @@ function AutomationIcon({ className }: { className?: string }) {
       <path d="M2.5 8h11" />
       <circle cx="5.5" cy="4.5" r="1.5" />
       <circle cx="10.5" cy="11.5" r="1.5" />
+    </Glyph>
+  );
+}
+
+/** A shield: the payment is public, what it says about the payer is not. */
+function PrivacyIcon({ className }: { className?: string }) {
+  return (
+    <Glyph className={className}>
+      <path d="M8 2.2 13 4v4c0 3-2.1 5-5 5.8C5.1 13 3 11 3 8V4z" />
+      <path d="M6.2 8.1 7.4 9.3l2.4-2.6" />
     </Glyph>
   );
 }

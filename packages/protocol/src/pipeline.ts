@@ -3,6 +3,7 @@ import { QUEUES } from "@averis/queue";
 import { extractRubricTerms } from "@averis/reputation";
 import type { ConsensusInput, Evidence, Recommendation, Risk } from "@averis/types";
 import type { ProtocolContext } from "./context";
+import { splitReward } from "./reward-split";
 import { JobEngine, JobEngineError } from "./job-engine";
 
 /**
@@ -414,26 +415,3 @@ export class RewardStage {
   }
 }
 
-/** Configurable split; the defaults are placeholders, as the design intends. */
-export function splitReward(budget: number, env: NodeJS.ProcessEnv = process.env) {
-  const pct = (key: string, fallback: number): number => {
-    const raw = Number(env[key]);
-    return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : fallback;
-  };
-
-  const agents = pct("REWARD_SHARE_AGENTS", 0.7);
-  const validators = pct("REWARD_SHARE_VALIDATORS", 0.15);
-  const protocol = pct("REWARD_SHARE_PROTOCOL", 0.1);
-  const treasury = pct("REWARD_SHARE_TREASURY", 0.05);
-
-  const total = agents + validators + protocol + treasury;
-  // Normalize so a misconfigured split can never pay out more than the budget.
-  const scale = total > 0 ? budget / total : 0;
-
-  return {
-    agents: agents * scale,
-    validators: validators * scale,
-    protocol: protocol * scale,
-    treasury: treasury * scale,
-  };
-}
