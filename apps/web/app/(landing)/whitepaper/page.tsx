@@ -1510,7 +1510,7 @@ export default function WhitepaperPage() {
                 <Link className={s.sourceLink} href="/roadmap">
                   Roadmap
                 </Link>
-                <Link className={s.sourceLink} href="/#developers">
+                <Link className={s.sourceLink} href="/playground">
                   API and SDK
                 </Link>
                 <Link className={s.sourceLink} href="/dashboard">

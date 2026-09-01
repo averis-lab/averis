@@ -552,7 +552,7 @@ export default function RoadmapPage() {
             <Link className={s.link} href="/whitepaper#research">
               Open research questions
             </Link>
-            <Link className={s.link} href="/#developers">
+            <Link className={s.link} href="/playground">
               API and SDK
             </Link>
             <Link className={s.link} href="/dashboard">

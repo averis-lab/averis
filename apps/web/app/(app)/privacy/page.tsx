@@ -27,8 +27,8 @@ export default function PrivacyPage() {
         <h1 className="text-xl font-semibold tracking-tight">Private transfers</h1>
         <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted">
           Send USDC without the payment pointing back at you. Deposit once, then spend from a
-          private balance — each payment leaves a fresh wallet, so it cannot be tied to the
-          wallet you deposited from or to anything else you have sent.
+          private balance. Each payment leaves a fresh wallet, so it cannot be tied to the wallet
+          you deposited from, or to anything else you have sent.
         </p>
       </header>
 
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
 
       <p className="max-w-2xl text-sm leading-relaxed text-muted">
         What this hides is the link between payer and payment, from anyone reading the chain. It
-        is not invisibility: the network px402 runs on — its attestor, bundler and subgraph —
+        is not invisibility. The network px402 runs on, its attestor, bundler and subgraph, still
         handles the payment and can see it.
       </p>
     </div>

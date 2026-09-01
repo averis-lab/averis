@@ -43,7 +43,7 @@ const LINKS = [
   { label: "Whitepaper", href: "/whitepaper", d: "0.24s" },
   { label: "Roadmap", href: "/roadmap", d: "0.32s" },
   { label: "Datanets", href: "/datanets", d: "0.40s" },
-  { label: "Developers", href: "/#developers", d: "0.48s" },
+  { label: "Developers", href: "/playground", d: "0.48s" },
 ];
 
 /**

@@ -2,7 +2,6 @@
 
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Card, SectionHead } from "@/components/ui";
 import { useWallet } from "@/components/wallet";
 
 /**
@@ -31,6 +30,20 @@ const CHAINS = [
   { id: "polygon", label: "Polygon" },
 ] as const;
 
+/**
+ * Networks px402 does not reach yet.
+ *
+ * Kept out of `CHAINS` rather than flagged inside it, so `Chain` stays exactly
+ * the union the SDK accepts and an unreachable network cannot be selected by
+ * any path. It is shown rather than omitted for the reason the sidebar shows a
+ * section that is not built yet: hiding it would suggest nobody intends to.
+ *
+ * Adding one here is not what makes it work. px402 compiles its pool,
+ * paymaster and entry-point addresses per chain and ships no contract source,
+ * so a network arrives only when they deploy and release it.
+ */
+const SOON = ["Robinhood Chain"] as const;
+
 const STORAGE_KEY = "averis.px402.note";
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
@@ -52,6 +65,28 @@ function readNote(): string | null {
     // A browser refusing storage is not worth blocking on. The note then does
     // not survive a reload, which the copy below already warns about.
     return null;
+  }
+}
+
+/**
+ * Proves the note can be saved, before anything is deposited.
+ *
+ * The worst outcome this component can produce is a deposit that succeeds
+ * followed by a note that cannot be stored: the funds are then in the pool
+ * with nothing able to spend them, and no server holds a copy to recover from.
+ * A browser in private mode, or one with site data blocked, does exactly that.
+ * Writing and reading back a throwaway value first turns that from a loss into
+ * a refusal.
+ */
+function storageWorks(): boolean {
+  const probe = `${STORAGE_KEY}.probe`;
+  try {
+    window.localStorage.setItem(probe, "1");
+    const ok = window.localStorage.getItem(probe) === "1";
+    window.localStorage.removeItem(probe);
+    return ok;
+  } catch {
+    return false;
   }
 }
 
@@ -86,6 +121,7 @@ export function Px402Transfer() {
   const [amount, setAmount] = useState<number>(1);
   const [recipient, setRecipient] = useState("");
   const [sendAmount, setSendAmount] = useState("");
+  const [showBackup, setShowBackup] = useState(false);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
@@ -111,7 +147,7 @@ export function Px402Transfer() {
       );
 
       if (!needNote) return { sdk, note: null };
-      if (!stored) throw new Error("No note yet — deposit first.");
+      if (!stored) throw new Error("No note yet. Deposit first.");
       if (!password) throw new Error("Enter the password this note was saved with.");
       const note = await decryptNote(JSON.parse(stored), password);
       return { sdk, note };
@@ -134,7 +170,13 @@ export function Px402Transfer() {
 
   const deposit = () =>
     run("depositing", async () => {
-      if (!password) throw new Error("Choose a password first — it encrypts the note.");
+      if (!password) throw new Error("Choose a password first. It encrypts the note.");
+      if (!storageWorks()) {
+        throw new Error(
+          "This browser will not keep the note, so a deposit could not be spent afterwards. " +
+            "Allow site data for this page, or use a normal window instead of a private one.",
+        );
+      }
       const { encryptNote } = await import("@prxvt/sdk");
       const { sdk } = await open(false);
       // `depositLegacy` is the only path that does not want a raw private key.
@@ -176,49 +218,76 @@ export function Px402Transfer() {
 
   if (!wallet.enabled) return null;
 
-  return (
-    <section>
-      <SectionHead aside={stored ? "note saved" : "no note"}>Send privately</SectionHead>
+  const field =
+    "w-full rounded-xl border border-line bg-background/40 px-3.5 py-2.5 text-sm outline-none transition-colors placeholder:text-muted/60 focus:border-accent/50";
+  const chip = (on: boolean) =>
+    `rounded-lg border px-3 py-1.5 font-mono text-[11px] transition-colors ${
+      on ? "border-accent/60 bg-accent/10 text-foreground" : "border-line text-muted hover:bg-line/30"
+    }`;
 
-      <Card className="divide-y divide-line overflow-hidden">
+  return (
+    <section className="space-y-3">
+      <div className="rounded-2xl border border-line bg-surface p-6 sm:p-7">
+        {/* Heading and the one number that matters, on one line — the balance
+            is what someone opens this page to see. */}
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Send privately</h2>
+            <p className="mt-1 text-sm text-muted">
+              Deposit once, then spend without the payment pointing back at you.
+            </p>
+          </div>
+          <div className="text-right">
+            {/* An unchecked balance is not a zero balance, and showing one as
+                the other is the sort of small lie a wallet must never tell. */}
+            {balance === null ? (
+              <p className="font-mono text-sm text-muted">not checked</p>
+            ) : (
+              <p className="font-mono text-2xl leading-none text-accent">{balance}</p>
+            )}
+            <p className="mt-1 font-mono text-[11px] text-muted">private balance · USDC</p>
+          </div>
+        </div>
+
         {!wallet.connected ? (
-          <div className="px-4 py-4">
+          <div className="mt-6">
             <p className="text-sm leading-relaxed text-muted">
-              Connect a wallet to deposit. The wallet signs the deposit and is never asked for a
-              key — after that, payments are made from the note and are not linked to it.
+              Connect a wallet to deposit. It signs the deposit and is never asked for a key.
+              After that, payments come from the note and are not linked to it.
             </p>
             <button
               type="button"
               onClick={wallet.connect}
               disabled={!ready}
-              className="mt-3 rounded-lg border border-line px-3 py-1.5 text-sm transition-colors hover:bg-line/40 disabled:opacity-50"
+              className="mt-4 w-full rounded-xl bg-accent-strong px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               Connect wallet
             </button>
           </div>
         ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3.5">
-              <span className="font-mono text-[11px] tracking-wide text-muted">Chain</span>
+          <div className="mt-6 space-y-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 font-mono text-[11px] tracking-wide text-muted">Network</span>
               {CHAINS.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setChain(c.id)}
-                  className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${
-                    chain === c.id ? "border-fg/40 text-fg" : "border-line text-muted hover:bg-line/40"
-                  }`}
-                >
+                <button key={c.id} type="button" onClick={() => setChain(c.id)} className={chip(chain === c.id)}>
                   {c.label}
                 </button>
               ))}
-              <span className="ml-auto font-mono text-[11px] text-muted">
-                px402 settles on these two only
-              </span>
+              {SOON.map((label) => (
+                <span
+                  key={label}
+                  aria-disabled="true"
+                  title="px402 has no pool on this network yet"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-line px-3 py-1.5 font-mono text-[11px] text-muted/60"
+                >
+                  {label}
+                  <span className="tracking-[0.1em] uppercase">soon</span>
+                </span>
+              ))}
             </div>
 
-            <div className="px-4 py-3.5">
-              <label className="block font-mono text-[11px] tracking-wide text-muted">
+            <div>
+              <label className="mb-1.5 block font-mono text-[11px] tracking-wide text-muted">
                 Note password
               </label>
               <input
@@ -226,100 +295,134 @@ export function Px402Transfer() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="encrypts the note in this browser"
-                className="mt-1.5 w-full rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm outline-none focus:border-fg/40"
+                className={field}
               />
-              <p className="mt-1.5 text-sm leading-relaxed text-muted">
-                The note is the money: whoever holds it can spend the balance. It is encrypted
-                with this password and kept in this browser only — never sent to Averis. Lose the
-                browser or the password and the balance is gone, and nobody can restore it.
-              </p>
             </div>
 
-            <div className="px-4 py-3.5">
-              <p className="font-mono text-[11px] tracking-wide text-muted">
-                Deposit — fixed amounts, so the size is not a fingerprint
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div>
+              <div className="mb-1.5 flex items-baseline justify-between gap-3">
+                <span className="font-mono text-[11px] tracking-wide text-muted">
+                  Deposit, USDC
+                </span>
+                {/* Said once here rather than repeated on five chips. */}
+                <span className="font-mono text-[11px] text-muted/70">fixed sizes only</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 {AMOUNTS.map((a) => (
-                  <button
-                    key={a}
-                    type="button"
-                    onClick={() => setAmount(a)}
-                    className={`rounded-md border px-2.5 py-1 font-mono text-[11px] transition-colors ${
-                      amount === a ? "border-fg/40 text-fg" : "border-line text-muted hover:bg-line/40"
-                    }`}
-                  >
-                    {a} USDC
+                  <button key={a} type="button" onClick={() => setAmount(a)} className={chip(amount === a)}>
+                    {a}
                   </button>
                 ))}
                 <button
                   type="button"
                   onClick={deposit}
                   disabled={busy !== null}
-                  className="ml-auto rounded-lg border border-line px-3 py-1.5 text-sm transition-colors hover:bg-line/40 disabled:opacity-50"
+                  className="ml-auto rounded-lg border border-line px-3 py-1.5 text-sm transition-colors hover:bg-line/30 disabled:opacity-50"
                 >
                   {busy === "depositing" ? "Depositing…" : "Deposit"}
                 </button>
               </div>
             </div>
 
-            <div className="px-4 py-3.5">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="font-mono text-[11px] tracking-wide text-muted">Private balance</p>
+            <div className="space-y-2 border-t border-line pt-5">
+              <label className="block font-mono text-[11px] tracking-wide text-muted">
+                Send to
+              </label>
+              <input
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="0x…"
+                className={`${field} font-mono text-[12px]`}
+              />
+              <input
+                value={sendAmount}
+                onChange={(e) => setSendAmount(e.target.value)}
+                inputMode="decimal"
+                placeholder="amount, USDC"
+                className={field}
+              />
+            </div>
+
+            {/* One primary action, full width — the reason the page exists. */}
+            <button
+              type="button"
+              onClick={send}
+              disabled={busy !== null || !stored}
+              className="w-full rounded-xl bg-accent-strong px-4 py-3 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              {busy === "sending" ? "Sending…" : "Send privately"}
+            </button>
+
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[11px] text-muted">
+              <span className="font-mono">{stored ? "note saved in this browser" : "no note yet, deposit first"}</span>
+              <div className="flex items-center gap-4">
+                {stored ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowBackup((v) => !v)}
+                    className="font-mono underline-offset-2 hover:underline"
+                  >
+                    {showBackup ? "hide backup" : "back up note"}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={check}
                   disabled={busy !== null || !stored}
-                  className="font-mono text-[11px] text-muted underline-offset-2 hover:underline disabled:opacity-40"
+                  className="font-mono underline-offset-2 hover:underline disabled:opacity-40"
                 >
-                  {busy === "loading" ? "checking…" : "check"}
+                  {busy === "loading" ? "checking…" : "refresh balance"}
                 </button>
               </div>
-              <p className="mt-1.5 font-mono text-sm">
-                {balance === null ? "—" : `${balance} USDC`}
-              </p>
             </div>
 
-            <div className="px-4 py-3.5">
-              <p className="font-mono text-[11px] tracking-wide text-muted">Send</p>
-              <input
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                placeholder="0x… recipient"
-                className="mt-2 w-full rounded-lg border border-line bg-transparent px-3 py-1.5 font-mono text-[12px] outline-none focus:border-fg/40"
-              />
-              <div className="mt-2 flex gap-2">
-                <input
-                  value={sendAmount}
-                  onChange={(e) => setSendAmount(e.target.value)}
-                  inputMode="decimal"
-                  placeholder="amount in USDC"
-                  className="flex-1 rounded-lg border border-line bg-transparent px-3 py-1.5 text-sm outline-none focus:border-fg/40"
+            {/* One browser is one copy, and clearing site data is a thing
+                people do without thinking about it. The text below is already
+                encrypted with the password above, so it is safe to keep
+                somewhere else and useless to anyone without it. */}
+            {showBackup && stored ? (
+              <div>
+                <p className="mb-1.5 font-mono text-[11px] tracking-wide text-muted">
+                  Encrypted note. Keep a copy somewhere other than this browser.
+                </p>
+                <textarea
+                  readOnly
+                  rows={3}
+                  value={stored}
+                  onFocus={(e) => e.currentTarget.select()}
+                  className="w-full resize-none rounded-xl border border-line bg-background/40 px-3.5 py-2.5 font-mono text-[11px] break-all outline-none"
                 />
-                <button
-                  type="button"
-                  onClick={send}
-                  disabled={busy !== null || !stored}
-                  className="rounded-lg border border-line px-3 py-1.5 text-sm transition-colors hover:bg-line/40 disabled:opacity-50"
-                >
-                  {busy === "sending" ? "Sending…" : "Send privately"}
-                </button>
               </div>
-              <p className="mt-2 text-sm leading-relaxed text-muted">
-                The payment leaves a fresh wallet with no history, so it is not linked to the one
-                you deposited from. What remains becomes a new note, saved here in its place.
-              </p>
-            </div>
-          </>
+            ) : null}
+          </div>
         )}
 
         {error ? (
-          <p className="px-4 py-3 text-sm leading-relaxed text-amber-500">{error}</p>
+          <p className="mt-4 rounded-xl border border-accent/30 bg-accent/5 px-3.5 py-2.5 text-sm leading-relaxed text-accent">
+            {error}
+          </p>
         ) : null}
         {receipt ? (
-          <p className="px-4 py-3 font-mono text-[12px] break-all text-emerald-500">{receipt}</p>
+          <p className="mt-4 rounded-xl border border-line bg-background/40 px-3.5 py-2.5 font-mono text-[12px] break-all text-emerald-500">
+            {receipt}
+          </p>
         ) : null}
-      </Card>
+      </div>
+
+      {/* The three facts worth knowing before sending, as a strip rather than
+          paragraphs — they are constraints, not prose. */}
+      <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-3">
+        {[
+          ["Custody", "Yours alone"],
+          ["Networks", "Base · Polygon"],
+          ["Recovery", "None. Keep the note"],
+        ].map(([label, value]) => (
+          <div key={label} className="bg-surface px-4 py-3.5">
+            <p className="font-mono text-[10px] tracking-[0.12em] text-muted uppercase">{label}</p>
+            <p className="mt-1 text-sm">{value}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

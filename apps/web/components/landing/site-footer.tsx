@@ -37,15 +37,12 @@ const COLUMNS = [
       { label: "How it works", href: "#how-it-works" },
       { label: "Example report", href: "#preview" },
       { label: "Why it is different", href: "#principles" },
-      { label: "Comparison", href: "#compare" },
-      { label: "Where this goes", href: "#progression" },
     ],
   },
   {
     heading: "Reference",
     links: [
-      { label: "API and SDK", href: "#developers" },
-      { label: "Domains", href: "#domains" },
+      { label: "API and SDK", href: "/playground" },
       { label: "FAQ", href: "#faq" },
     ],
   },

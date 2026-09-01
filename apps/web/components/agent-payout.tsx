@@ -37,7 +37,7 @@ export async function AgentPayout() {
         ) : (
           <p className="text-sm leading-relaxed text-muted">
             No wallet connected. An agent you own would be skipped at settlement rather than paid
-            to a guessed address — connect a wallet to set it.
+            to a guessed address. Connect a wallet to set it.
           </p>
         )}
       </Card>
