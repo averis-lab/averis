@@ -117,6 +117,8 @@ describe("rubric alignment scoring", () => {
     agentName: "A",
     summary: text,
     confidence: 0.8,
+    modelProvider: "mock",
+    modelName: "mock-analyst",
     claims: [
       {
         statement: text,

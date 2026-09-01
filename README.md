@@ -262,8 +262,8 @@ Four things are worth knowing about:
   paywall refuses to start without them. A wrong token address is not a
   misconfiguration, it is funds sent somewhere nobody controls, so the same rule
   that forbids a default `X402_PAY_TO` covers all three. Both addresses are
-  checked against `0x` + 40 hex at startup, which catches a Solana address
-  pasted into an EVM field.
+  checked against `0x` + 40 hex at startup, which catches an address from
+  another chain pasted into an EVM field.
 - **Startup fails loudly** if the facilitator does not support the configured
   scheme and network, naming the pair it rejected. Check what one supports with
   `curl <facilitator>/supported` — coverage varies, and not every facilitator
@@ -273,8 +273,10 @@ A paid request with no key is anonymous: it has no account, so it gets no
 tenancy — the job it creates is visible only to a root key. Present an account
 key *and* pay to get both.
 
-The fee is charged once, up front, and no payment has ever settled — the
-challenge is issued, the driver that signs does not exist. Both are noted in the
+The fee is charged once, up front, and no payment has ever settled end to end
+against a live facilitator. The challenge is issued and now names a scheme that
+matches the chain — the paywall previously registered a scheme from another
+chain family against an `eip155:` network, a pair no facilitator can verify. Both are noted in the
 gaps below.
 
 ### Automation (trading)
@@ -285,7 +287,7 @@ positions. It is a **consumer** of the protocol, not part of it: nothing in
 
 ```bash
 EXECUTION_DRIVER=paper
-EXECUTION_PRICE_URL='https://<a quote endpoint you verified>?ids={mint}'
+EXECUTION_PRICE_URL='https://<a quote endpoint you verified>?ids={token}'
 PRIVY_APP_ID=…        # optional: own automations by wallet
 PRIVY_APP_SECRET=…
 ```
@@ -304,9 +306,10 @@ this one" is answerable in claims and evidence rather than in a signal.
 
 Four things are worth knowing about:
 
-- **There is no live driver, and `LIVE` returns 501.** Same position
-  `SETTLEMENT_DRIVER` takes: an untested transfer path beside code that has
-  never moved a lamport is dangerous precisely because it looks ready.
+- **There is no live driver, and `LIVE` returns 501.** The default refuses, as
+  `SETTLEMENT_DRIVER` does — but unlike settlement, nothing here has been
+  written to trade: an untested swap path beside code that has never executed
+  a trade is dangerous precisely because it looks ready.
 - **There is no custody.** No key column, no wallet the server signs with. An
   automation holds a name, a policy and two switches.
 - **Both defaults refuse.** With no driver nothing opens; with no price source
@@ -328,7 +331,7 @@ caller you write. See [docs/automation.md](docs/automation.md).
 | `LLM_PROVIDER` | `mock` | `anthropic` \| `openai` \| `gemini` |
 | `API_KEYS` | `dev-key-local` | Comma-separated *root* keys; empty disables auth |
 | `AGENT_HTTP_ALLOWLIST` | *(unset)* | Enables `http_get` for the listed hosts only |
-| `SETTLEMENT_DRIVER` | `none` | `ledger` records payments made off-chain; no on-chain driver exists |
+| `SETTLEMENT_DRIVER` | `none` | `ledger` records payments made off-chain; `evm` transfers an ERC-20 on chain |
 | `X402_ENABLED` | `false` | Charges per job over x402; needs `X402_PAY_TO` |
 | `PRIVY_APP_ID` / `PRIVY_APP_SECRET` | *(unset)* | Wallet login; both or neither, half-configured throws at startup |
 | `EXECUTION_DRIVER` | `none` | `paper` books simulated fills; there is no live driver |
@@ -365,9 +368,34 @@ than pretending to: a no-op that reported success would mark rewards `SETTLED`
 and destroy the record that they are still owed.
 
 `SETTLEMENT_DRIVER=ledger` records a payment made outside this system, so the
-same amount is not owed twice. There is no on-chain driver — writing a transfer
-path nobody has ever run would put code that looks ready to move money next to
-code that has moved none.
+same amount is not owed twice.
+
+`SETTLEMENT_DRIVER=evm` pays for real, by transferring an ERC-20:
+
+```bash
+SETTLEMENT_DRIVER=evm
+SETTLEMENT_RPC_URL=<rpc endpoint>
+SETTLEMENT_CHAIN_ID=<evm chain id>
+SETTLEMENT_ASSET=<usdc contract, 0x…>
+SETTLEMENT_PRIVATE_KEY=<the key that signs payouts, 0x…>
+```
+
+All four are required and none has a default, for the reason the paywall has no
+network table: a wrong token contract is not a misconfiguration, it is funds
+sent somewhere nobody controls. The chain id is checked against the one the RPC
+actually serves before the first transfer, every transfer is simulated before it
+is broadcast, and `CONFIRMED` is reported only after the receipt is read back —
+a transfer that has not confirmed within the timeout is `BROADCAST`, and the
+debt stays owed until something sees it land.
+
+An address the driver cannot pay is a **skip with a reason**, printed by the
+plan before anything is executed, rather than a failure partway through a split.
+That case is real rather than theoretical: agent payees come from the wallet a
+user connected through Privy, which is not guaranteed to be an EVM address.
+
+The transfer path is executed in the test suite against a JSON-RPC server on
+loopback, which signs a genuine transaction and reads the bytes back to check
+the calldata. It has **not** yet moved funds on a real chain.
 
 Three rules hold whatever driver is used. An agent with no payout address is
 skipped rather than guessed at. A job whose rewards exceed its budget is held
@@ -425,9 +453,9 @@ Known gaps, in the order they are worth closing:
 | Web traffic shares one server-side key outside `/automation` | Jobs and agents still render under a shared identity; only automations are per-wallet |
 | One oracle (`reppo:` sources only) | Price and on-chain predictions resolve as `UNRESOLVABLE` |
 | No metrics or tracing | Cost, latency and failure rates are invisible |
-| No on-chain settlement driver | Payments must be made elsewhere and recorded with the `ledger` driver |
+| The `evm` settlement driver has never run on a real chain | Its transfer path is exercised against a mock RPC only; the first live sweep is still a first |
 | x402 charges a flat fee | A one-agent job costs the same as a five-agent one |
-| x402 has never settled | The challenge is issued and verified; no payment has completed on any chain |
+| x402 has never settled | The challenge is issued; no payment has completed against a live facilitator |
 | No automation tick loop | `evaluate` and `sweep` are called by hand; nothing polls for resolved jobs |
 | No price adapter shipped | An automation cannot mark a position until `EXECUTION_PRICE_URL` points somewhere verified |
 

@@ -32,11 +32,38 @@ export const ModelOutputSchema = z.object({
         kind: ClaimKindSchema.default("ASSESSMENT"),
         confidence: UnitInterval,
         evidenceRefs: z.array(z.number().int().nonnegative()).default([]),
-        resolution: ResolutionCriteriaSchema.optional(),
+        /*
+         * Nullish, not optional. A model saying `"resolution": null` is saying
+         * this claim carries no resolution criteria, which is both the common
+         * case and exactly what the runtime stores for it a few lines below.
+         * Accepting the absent key but rejecting the explicit null threw away
+         * a whole agent's work over the difference between the two.
+         */
+        resolution: ResolutionCriteriaSchema.nullish(),
       }),
     )
     .min(1),
-  metrics: z.record(z.string(), z.union([z.number(), z.string()])).default({}),
+  /*
+   * Metrics are whatever the agent thought worth counting, so the value is
+   * taken as it comes and rendered down to a scalar rather than refused. A
+   * model answering `highest_quality_evidence_refs: [0, 3, 7]` is being useful,
+   * and losing its entire analysis over the shape of one diagnostic number is
+   * not a trade this runtime should make. Downstream still sees the
+   * `number | string` it has always seen.
+   */
+  metrics: z
+    .record(z.string(), z.unknown())
+    .transform((raw) => {
+      const out: Record<string, number | string> = {};
+      for (const [key, value] of Object.entries(raw)) {
+        if (typeof value === "number" && Number.isFinite(value)) out[key] = value;
+        else if (typeof value === "string") out[key] = value;
+        else if (typeof value === "boolean") out[key] = String(value);
+        else if (value !== null && value !== undefined) out[key] = JSON.stringify(value);
+      }
+      return out;
+    })
+    .default({}),
   recommendation: RecommendationSchema.nullable().default(null),
   risks: z.array(RiskSchema).default([]),
   confidence: UnitInterval,
@@ -211,18 +238,39 @@ export async function runAgent(options: AgentRunOptions): Promise<AgentRunResult
   }
 
   // ─── Structured answer phase ──────────────────────────────────────────────
+  //
+  // Where the provider cannot promise the schema is honoured natively, it is
+  // stated in the prompt as well — see `LLMProvider.guaranteesStructuredOutput`.
+  // The adapter withholds `response_format` in that case, so this paragraph is
+  // the only thing telling the model what shape to answer in. One call, not a
+  // retry, and no dependence on how a particular gateway treats a parameter
+  // its chosen provider does not implement.
+  const askedFor = { name: "structured_intelligence", schema: ModelOutputSchema };
+  const schemaInPrompt =
+    options.provider.guaranteesStructuredOutput === false
+      ? "\n\nAnswer with a single JSON object and nothing else. It must satisfy this JSON Schema:\n" +
+        JSON.stringify(
+          // `input`, not `output`: this describes what the model must *send*.
+          // The output side is what parsing yields after the runtime's own
+          // normalisation, which is none of the model's business — and cannot
+          // be rendered at all once a field normalises on the way in.
+          z.toJSONSchema(askedFor.schema, { target: "draft-2020-12", io: "input" }),
+        )
+      : "";
+
   messages.push({
     role: "user",
     content:
-      evidence.size === 0
+      (evidence.size === 0
         ? "No evidence was retrieved. Report that honestly with low confidence — do not speculate."
-        : `You have collected ${evidence.size} pieces of evidence (refs 0..${evidence.size - 1}). Produce your final structured analysis now, citing refs on every claim.`,
+        : `You have collected ${evidence.size} pieces of evidence (refs 0..${evidence.size - 1}). Produce your final structured analysis now, citing refs on every claim.`) +
+      schemaInPrompt,
   });
 
   const final = await options.provider.complete({
     system,
     messages,
-    responseSchema: { name: "structured_intelligence", schema: ModelOutputSchema },
+    responseSchema: askedFor,
     effort: "high",
   });
   accumulate(usage, final.usage);
@@ -245,7 +293,16 @@ export async function runAgent(options: AgentRunOptions): Promise<AgentRunResult
       confidence: claim.confidence,
       fingerprint: claimFingerprint(claim.statement),
       evidence: resolved,
-      resolution: claim.resolution ?? null,
+      // A resolution whose deadline is not a date is not a resolution.
+      //
+      // `ResolutionCriteriaSchema` types `deadline` as a string, and a real
+      // model uses that latitude: it answers "when ETH data is ingested" or
+      // "2026-Q4" as readily as an ISO date. Carrying that through produced an
+      // Invalid Date at the point of insert, which failed the write for the
+      // whole output — every claim lost because one of them dated itself in
+      // prose. The claim survives; only its unusable criteria are dropped, so
+      // nothing downstream tries to schedule a resolution it can never run.
+      resolution: usableResolution(claim.resolution),
       // A claim that cited refs which do not exist is flagged rather than
       // dropped, so the evaluation engine can penalise the agent for it.
       unsupported: resolved.length === 0,
@@ -280,6 +337,15 @@ function accumulate(target: LLMUsage, add: LLMUsage): void {
 }
 
 /** Last-resort recovery for providers without native structured output. */
+/** The criteria, or null when nothing could ever resolve them. */
+function usableResolution(
+  resolution: z.infer<typeof ResolutionCriteriaSchema> | null | undefined,
+): z.infer<typeof ResolutionCriteriaSchema> | null {
+  if (!resolution) return null;
+  const deadline = new Date(resolution.deadline);
+  return Number.isNaN(deadline.getTime()) ? null : resolution;
+}
+
 function parseLoose(text: string): unknown {
   const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(text);
   const candidate = fenced?.[1] ?? text;

@@ -12,7 +12,7 @@ import type { TradePolicy } from "./policy";
 /** What the protocol concluded, reduced to the fields an entry gate reads. */
 export interface IntelligenceVerdict {
   jobId: string;
-  mint: string;
+  token: string;
   symbol: string;
   /** `recommendation.action`, verbatim from the merged result. */
   action: string;
@@ -27,7 +27,7 @@ export interface IntelligenceVerdict {
 
 export interface OpenPosition {
   id: string;
-  mint: string;
+  token: string;
   sizeUsd: number;
   entryPrice: number;
   /** Highest price observed since entry — the trailing stop's reference. */
@@ -36,7 +36,7 @@ export interface OpenPosition {
 }
 
 export interface ClosedTrade {
-  mint: string;
+  token: string;
   pnlUsd: number;
   closedAt: Date;
 }
@@ -45,9 +45,9 @@ export type EntryDenial =
   | "STOPPED"
   | "BREAKER_TRIPPED"
   | "LOSS_COOLDOWN"
-  | "MINT_COOLDOWN"
+  | "TOKEN_COOLDOWN"
   | "ALREADY_HOLDING"
-  | "BLOCKED_MINT"
+  | "BLOCKED_TOKEN"
   | "MAX_POSITIONS"
   | "MAX_DEPLOYED"
   | "NOT_A_BUY"
@@ -107,8 +107,8 @@ export function planEntry(input: EntryInput): EntryDecision {
   const breaker = deriveBreaker(input.recentTrades, policy, input.breakerResetAt, now);
   const lastLoss = lastLossAt(input.recentTrades, input.breakerResetAt);
   const lossCooldownRemaining = remainingMinutes(lastLoss, policy.cooldownAfterLossMinutes, now);
-  const lastEntry = lastTradeOnMint(input.recentTrades, verdict.mint);
-  const mintCooldownRemaining = remainingMinutes(lastEntry, policy.mintCooldownMinutes, now);
+  const lastEntry = lastTradeOnToken(input.recentTrades, verdict.token);
+  const tokenCooldownRemaining = remainingMinutes(lastEntry, policy.tokenCooldownMinutes, now);
 
   const gates: Gate[] = [
     gate("STOPPED", "started", active ? "started" : "stopped", active),
@@ -120,22 +120,22 @@ export function planEntry(input: EntryInput): EntryDecision {
       lossCooldownRemaining === 0,
     ),
     gate(
-      "MINT_COOLDOWN",
-      `${policy.mintCooldownMinutes}m per mint`,
-      mintCooldownRemaining > 0 ? `${mintCooldownRemaining}m remaining` : "clear",
-      mintCooldownRemaining === 0,
+      "TOKEN_COOLDOWN",
+      `${policy.tokenCooldownMinutes}m per token`,
+      tokenCooldownRemaining > 0 ? `${tokenCooldownRemaining}m remaining` : "clear",
+      tokenCooldownRemaining === 0,
     ),
     gate(
       "ALREADY_HOLDING",
-      "no open position in this mint",
-      openPositions.some((p) => p.mint === verdict.mint) ? "already holding" : "none",
-      !openPositions.some((p) => p.mint === verdict.mint),
+      "no open position in this token",
+      openPositions.some((p) => p.token === verdict.token) ? "already holding" : "none",
+      !openPositions.some((p) => p.token === verdict.token),
     ),
     gate(
-      "BLOCKED_MINT",
+      "BLOCKED_TOKEN",
       "not blocked",
-      policy.blockedMints.includes(verdict.mint) ? "blocked" : "not blocked",
-      !policy.blockedMints.includes(verdict.mint),
+      policy.blockedTokens.includes(verdict.token) ? "blocked" : "not blocked",
+      !policy.blockedTokens.includes(verdict.token),
     ),
     gate(
       "MAX_POSITIONS",
@@ -341,11 +341,11 @@ function lastLossAt(trades: ClosedTrade[], resetAt: Date | null): Date | null {
   return losses[0]?.closedAt ?? null;
 }
 
-function lastTradeOnMint(trades: ClosedTrade[], mint: string): Date | null {
-  const onMint = trades
-    .filter((t) => t.mint === mint)
+function lastTradeOnToken(trades: ClosedTrade[], token: string): Date | null {
+  const onToken = trades
+    .filter((t) => t.token === token)
     .sort((a, b) => b.closedAt.getTime() - a.closedAt.getTime());
-  return onMint[0]?.closedAt ?? null;
+  return onToken[0]?.closedAt ?? null;
 }
 
 function remainingMinutes(since: Date | null, windowMinutes: number, now: Date): number {

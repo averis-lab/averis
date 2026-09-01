@@ -3,7 +3,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { pingDatabase, prisma, toNumber } from "@averis/db";
 import { QUEUES } from "@averis/queue";
-import type { ProtocolContext } from "@averis/protocol";
+import { assessPx402, describeRouting, type ProtocolContext } from "@averis/protocol";
 import { registerAuth, extractKey, requesterScope } from "./auth";
 import { hashApiKey } from "./api-key";
 import { registerJobRoutes } from "./routes/jobs";
@@ -131,6 +131,36 @@ export async function buildServer({ ctx }: ServerOptions): Promise<FastifyInstan
    * failure rate is over *terminal* jobs only: a job still queued has not
    * failed, and counting it as a success in waiting flatters the number.
    */
+  /**
+   * Whether a px402 payer could pay this installation, and what stops it.
+   *
+   * Read from configuration only. Deliberately makes no request to prxvt.com:
+   * a panel that phoned a third party on every page load would be reporting
+   * their uptime rather than our readiness, and would tell them who is looking.
+   */
+  app.get("/v1/privacy/px402", async (_request, reply) => {
+    return reply.send({ data: assessPx402(ctx.env) });
+  });
+
+  /**
+   * Where money goes, in both directions.
+   *
+   * Includes the requester's own payout wallet, because "where do my agents
+   * get paid" is the half of this question a person can actually act on — and
+   * they act on it by connecting a different wallet, not by editing a field.
+   */
+  app.get("/v1/payments/routing", async (request, reply) => {
+    return reply.send({
+      data: {
+        ...describeRouting(ctx.env),
+        you: {
+          walletAddress: request.principal?.walletAddress ?? null,
+          scope: request.principal?.scope ?? null,
+        },
+      },
+    });
+  });
+
   app.get("/v1/stats", async (request, reply) => {
     const scope = requesterScope(request.principal);
     const outputScope = scope.requesterId ? { job: scope } : {};

@@ -2,7 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { api } from "@/lib/api";
+import { describeQueryProblem, normalizeQuery } from "@averis/types";
+import { GatewayError, sendJson, walletLoginEnabled } from "@/lib/api";
+import { viewerToken } from "@/lib/session";
 
 export type CreateJobState =
   | { status: "idle" }
@@ -12,16 +14,39 @@ export type CreateJobState =
  * Creates an intelligence job.
  *
  * Server Actions are reachable by direct POST, so the input is validated here
- * rather than relying on the form's own constraints.
+ * rather than relying on the form's own constraints. The rule itself lives in
+ * `@averis/types` and is the same one the gateway applies — the form checks it
+ * as you type, this checks it before spending a round trip, and the API checks
+ * it because neither of the first two is reachable by a script.
  */
 export async function createJobAction(
   _previous: CreateJobState,
   formData: FormData,
 ): Promise<CreateJobState> {
-  const query = String(formData.get("query") ?? "").trim();
-  if (query.length < 8) {
-    return { status: "error", message: "Describe what intelligence you want in a little more detail." };
+  /*
+   * Who is asking, before what they are asking.
+   *
+   * This action is a public POST endpoint — a form on a page anyone can open,
+   * and reachable without the page at all. Authenticating it as the
+   * *application* meant every visitor spent the operator's agents under one
+   * shared identity, which is how a stranger's "are u retrarded" came to sit in
+   * the job list owned by the same requester as everything else.
+   *
+   * The token is not trusted here and is not inspected; it is forwarded, and
+   * the gateway verifies its signature before believing any field. A forged
+   * cookie buys a 401, not a job.
+   */
+  const token = await viewerToken();
+  if (walletLoginEnabled() && !token) {
+    return {
+      status: "error",
+      message: "Connect a wallet first — a job is owned by the wallet that created it.",
+    };
   }
+
+  const query = normalizeQuery(String(formData.get("query") ?? ""));
+  const problem = describeQueryProblem(query);
+  if (problem) return { status: "error", message: problem };
 
   const capabilities = String(formData.get("capabilities") ?? "")
     .split(",")
@@ -34,21 +59,48 @@ export async function createJobAction(
 
   let jobId: string;
   try {
-    const job = await api.createJob({
-      type: String(formData.get("type") ?? "dataset-evaluation"),
-      query,
-      requiredCapabilities: capabilities,
-      requiredAgents: agents,
-      budget,
-      minimumConfidence: minConfidence,
-      deadline: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-    });
-    jobId = job.id;
+    const created = await sendJson<{ data: { id: string } }>(
+      "/v1/jobs",
+      "POST",
+      {
+        type: String(formData.get("type") ?? "dataset-evaluation"),
+        query,
+        requiredCapabilities: capabilities,
+        requiredAgents: agents,
+        budget,
+        minimumConfidence: minConfidence,
+        deadline: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      },
+      undefined,
+      // The viewer's own identity, so the gateway stamps the job with their
+      // account rather than this app's. Null only when wallet login is off,
+      // where the shared key is still the intended caller.
+      token,
+    );
+    jobId = created.data.id;
   } catch (error) {
-    return {
-      status: "error",
-      message: error instanceof Error ? error.message : "Could not reach the API gateway.",
-    };
+    /*
+     * A duplicate is not a failure, so it does not render as one.
+     *
+     * The gateway answers 409 with the id of the job that already asks this,
+     * which is exactly where the requester wanted to end up — they pressed the
+     * button twice because they could not tell whether the first press worked.
+     * Sending them to the answer is a better reply than telling them off.
+     *
+     * The id is only *captured* here; the redirect happens below, outside the
+     * try/catch, for the same reason the success path does.
+     */
+    const existing =
+      error instanceof GatewayError && error.status === 409
+        ? (error.body as { existingJobId?: string } | undefined)?.existingJobId
+        : undefined;
+    if (!existing) {
+      return {
+        status: "error",
+        message: error instanceof Error ? error.message : "Could not reach the API gateway.",
+      };
+    }
+    jobId = existing;
   }
 
   revalidatePath("/dashboard");

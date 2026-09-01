@@ -32,6 +32,25 @@ import {
 
 type Status = "loading" | "live" | "offline";
 
+/**
+ * "Set 28 Aug 2026", or nothing.
+ *
+ * An all-time high means little without knowing whether it was set an hour ago
+ * or last year, and on a token this new it is nearly always the former. Undefined
+ * rather than an empty string, so React omits the attribute entirely instead of
+ * rendering an empty tooltip.
+ */
+function athNote(snapshot: TokenSnapshot | null): string | undefined {
+  if (!snapshot?.athAt) return undefined;
+  const when = new Date(snapshot.athAt);
+  if (Number.isNaN(when.getTime())) return undefined;
+  return `All-time high set ${when.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })}`;
+}
+
 const ARROW: Record<"up" | "down", string> = {
   up: "M7 2.6v8.8M3.6 6 7 2.6 10.4 6",
   down: "M7 11.4V2.6M3.6 8 7 11.4 10.4 8",
@@ -132,14 +151,28 @@ export function TokenTicker() {
   const state = stale ? "stale" : status;
   const label = { loading: "Reading", live: "Live", offline: "Unavailable", stale: "Last known" }[state];
 
+  /*
+   * `wide` is a phone-layout hint, not a rank.
+   *
+   * The rail folds to two columns on a narrow screen, and the ether price is
+   * the one figure that cannot survive it: fifteen characters that must not be
+   * abbreviated, because a truncated price is how a reader leaves with a
+   * number wrong by orders of magnitude. It takes a row of its own; the two
+   * short dollar figures pair up beneath it.
+   */
   const cells = [
+    { term: "Price", value: formatPrice(snapshot?.priceUsd ?? null), lead: true, wide: false },
+    { term: "In ETH", value: formatEth(snapshot?.priceEth ?? null), lead: false, wide: true },
+    { term: "Market cap", value: formatUsd(snapshot?.marketCap ?? null), lead: false, wide: false },
     {
-      term: "Price",
-      value: formatPrice(snapshot?.priceUsd ?? null),
-      lead: true,
+      term: "ATH market cap",
+      value: formatUsd(snapshot?.athMarketCap ?? null),
+      lead: false,
+      wide: false,
+      /* The date the high was set. On the title rather than in the cell: it is
+         context for the figure, not a fifth figure competing with it. */
+      note: athNote(snapshot),
     },
-    { term: `In ETH`, value: formatEth(snapshot?.priceEth ?? null), lead: false },
-    { term: "Market cap", value: formatUsd(snapshot?.marketCap ?? null), lead: false },
   ];
 
   return (
@@ -161,9 +194,15 @@ export function TokenTicker() {
         {cells.map((cell) => (
           /* Marked rather than positioned: the brand block is a sibling div,
              so any :first-of-type rule here would land on that instead. */
-          <div key={cell.term} className={s.tickerCell} data-lead={cell.lead || undefined}>
+          <div
+            key={cell.term}
+            className={s.tickerCell}
+            data-lead={cell.lead || undefined}
+            data-wide={cell.wide || undefined}
+            title={cell.note}
+          >
             <span className={s.tickerTerm}>{cell.term}</span>
-            {/* aria-live on the headline figure only: announcing three numbers
+            {/* aria-live on the headline figure only: announcing every number
                 on every poll would make the page unusable with a screen reader. */}
             <span className={s.tickerValue} aria-live={cell.lead ? "polite" : undefined}>
               {cell.value}

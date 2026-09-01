@@ -1,5 +1,6 @@
 import "server-only";
 import { AverisClient } from "@averis/sdk";
+import { viewerToken } from "./session";
 
 /**
  * Server-side API client.
@@ -23,6 +24,62 @@ export const api = new AverisClient({
   // rather than hanging until the platform kills the request.
   timeoutMs: 8_000,
 });
+
+/**
+ * What the gateway said, not just that it said no.
+ *
+ * `sendJson` used to flatten every failure to a message, which is enough to
+ * show an operator but throws away the body — and some refusals carry the
+ * answer in it. A 409 on a duplicate brief names the job that already asks it,
+ * and losing that turns "here is the answer you already have" into "request
+ * failed". Callers that only read `.message` are unaffected.
+ */
+export class GatewayError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+    readonly body: unknown,
+  ) {
+    super(message);
+    this.name = "GatewayError";
+  }
+}
+
+/**
+ * The same client, speaking as whoever is viewing.
+ *
+ * `api` above authenticates as the *application*, which is right for anonymous
+ * reads and wrong for anything a person owns: every job created through it
+ * lands in one shared account, so it cannot tell two visitors apart and the
+ * gateway's own tenancy filter has nothing to filter on. That is how a public
+ * dashboard ended up with one requester id covering everyone who ever opened
+ * it.
+ *
+ * When a wallet is connected its identity token is sent instead, and the
+ * gateway verifies the signature before believing a field of it. With no
+ * wallet this falls back to the shared key, which keeps anonymous reads working
+ * exactly as before — writes are gated separately, where refusing is useful.
+ */
+export async function viewerApi(): Promise<AverisClient> {
+  const token = await viewerToken();
+  if (!token) return api;
+  return new AverisClient({ baseUrl: GATEWAY, apiKey: token, timeoutMs: 8_000 });
+}
+
+/**
+ * True when this installation requires a wallet to own what it creates.
+ *
+ * A function, not a constant. This gates who may spend the installation's
+ * agents, and a module-scope constant is evaluated once when the module is
+ * first loaded — on a build machine that has no PRIVY_APP_ID, a folded `false`
+ * would leave the gate open in production and look exactly like a working one.
+ * Reading it per call costs nothing and cannot be baked in. It is the same
+ * reason the app layout reads the id at request time rather than as
+ * NEXT_PUBLIC_*.
+ */
+export function walletLoginEnabled(): boolean {
+  return Boolean(process.env["PRIVY_APP_ID"]?.trim());
+}
 
 export type ApiResult<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -108,7 +165,11 @@ export async function sendJson<T>(
       | (T & { error?: string })
       | null;
     if (!response.ok) {
-      throw new Error(payload?.error ?? `${path}: ${response.status}`);
+      throw new GatewayError(
+        response.status,
+        payload?.error ?? `${path}: ${response.status}`,
+        payload,
+      );
     }
     return payload as T;
   } finally {

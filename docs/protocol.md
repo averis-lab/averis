@@ -168,6 +168,60 @@ says nothing was corroborated.
 A job whose cohort shrinks still runs rather than failing outright; the honest
 numbers plus the job's own `minimumConfidence` are the safety net.
 
+**5. Measure how independent the cohort was.** Corroboration breadth asks how
+many analysts agreed. It does not ask how many *different things* were doing the
+analysing — and five agents are five opinions only if they can be wrong in
+different ways. A cohort sharing one model shares its blind spots, so part of
+its unanimity is a property of that model rather than a finding about the world.
+
+Every output records the provider and model that produced it, and the merge
+reports what the cohort was made of:
+
+```
+independence = {
+  origins: [{ origin, agents, weight }],   // vendors, heaviest first
+  effectiveOrigins,                        // 1 / Σ share²  — weighted
+  largestOriginShare,
+  distinctModels,
+  monoculture,                             // one model across the cohort
+  unknown,                                 // at least one binding unrecorded
+}
+```
+
+Two details decide whether the number means anything:
+
+*Origins are vendors, not credentials.* A gateway is resolved through to the lab
+that answered — `openrouter` + `google/gemini-3-pro` is Google — because the
+point of a gateway is that one key reaches many labs. Counting the credential
+would report a three-lab cohort as single-vendor, and three agents on one routed
+model as diverse. Aliases fold too: `gemini` and `google/…` are one lab, not
+two.
+
+*Vendors are counted by weight.* `effectiveOrigins` is the inverse Simpson
+index, so three vendors where one carries 90% of the merge weight score 1.2 and
+not 3 — the verdict really is that one agent's view with two bystanders.
+
+**There is deliberately no multiplier.** Corroboration carries one because at
+`n = 1` there is arithmetically no inter-agent agreement to measure. Monoculture
+has no such clean zero: agents on one model, given different roles and different
+evidence, do genuinely differ — just less, by an amount nobody here can put a
+number on. Folding an invented coefficient into `consensusScore` would leave one
+number answering two questions at once, how much they agreed and how much that
+agreement is worth, and the second is the reader's to judge. So the measurement
+is stated — in the summary, in `explain`'s reasons and caveats, and on the
+report page under the consensus meter — and the score stays a measurement of
+agreement.
+
+`unknown` is load-bearing. A result merged before this was recorded has no
+origins, and that is not the same as a cohort that turned out to be uniform;
+every reader downstream says "not recorded" rather than naming a vendor the
+protocol never observed.
+
+The binding is stored on the output, not read back through `Agent.modelProvider`
+at display time. The registry is editable, and re-deriving it would let a
+routine repointing of an agent silently rewrite what a finished job says
+produced its claims.
+
 ## Datanet rubrics
 
 Each Reppo datanet publishes its own standard: what contributors should submit
@@ -326,7 +380,27 @@ money.
 | A failed payment returns to `PENDING` | The failed `Transaction` row stays as the record of the attempt |
 | Only `CONFIRMED` settles the debt | A broadcast payment stays `APPROVED` until something observes it landing |
 
-Drivers are `none` (refuses, the default) and `ledger` (records a payment made
-outside this system). **No on-chain driver exists.** That is deliberate: an
-untested transfer path is the most dangerous possible thing to have in a
-settlement layer, because it looks ready.
+Drivers are `none` (refuses, the default), `ledger` (records a payment made
+outside this system) and `evm` (transfers an ERC-20 on an EVM chain).
+
+The `evm` driver is what makes a reward payable rather than merely calculable.
+It reads its chain id, RPC, token contract and signing key from the
+environment — none has a default, for the reason the paywall has no network
+table — and it adds three rules of its own:
+
+| Rule | Why |
+|---|---|
+| The RPC must serve the configured chain id | Two independent claims about one chain. A testnet endpoint under a mainnet id pays real rewards in worthless tokens with nothing looking wrong |
+| Every transfer is simulated before it is broadcast | An insufficient balance costs no gas and leaves the reward retryable, instead of a revert that costs gas and settles nothing |
+| An address the driver cannot pay is a *skip*, not a failure | Agent payees come from the wallet a user connected through Privy, which is not guaranteed to be an EVM address. `npm run settle` reports it before anything is executed rather than failing partway through a split |
+
+`CONFIRMED` still means observed: the status is reported only after the receipt
+is read back and seen to have succeeded. A transfer that has not confirmed
+within the timeout is reported `BROADCAST` with its hash, and the debt stays
+owed until something sees it land.
+
+The transfer path is exercised in `tests/settlement-evm-transfer.test.ts`
+against a JSON-RPC server on loopback — the transaction is genuinely built,
+signed and serialised, and the test reads the signed bytes back to confirm the
+calldata says what the reward said. What has **not** happened is a transfer on a
+real chain with real funds. That remains the gap.

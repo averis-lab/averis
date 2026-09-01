@@ -9,7 +9,7 @@
 export interface PriceSource {
   readonly name: string;
   /** Returns null when the price could not be observed. Never a guess. */
-  quote(mint: string): Promise<number | null>;
+  quote(token: string): Promise<number | null>;
 }
 
 /** The default. Observes nothing, so nothing opens and nothing marks. */
@@ -21,9 +21,9 @@ export class NullPriceSource implements PriceSource {
 }
 
 export interface HttpPriceSourceOptions {
-  /** URL template with `{mint}` substituted, e.g. `https://…/price?ids={mint}`. */
+  /** URL template with `{token}` substituted, e.g. `https://…/price?ids={token}`. */
   url: string;
-  /** Dotted path to the number inside the response, e.g. `data.{mint}.usdPrice`. */
+  /** Dotted path to the number inside the response, e.g. `data.{token}.usdPrice`. */
   path: string;
   timeoutMs?: number;
   name?: string;
@@ -44,8 +44,8 @@ export class HttpPriceSource implements PriceSource {
     this.name = options.name ?? "http";
   }
 
-  async quote(mint: string): Promise<number | null> {
-    const url = this.options.url.replaceAll("{mint}", encodeURIComponent(mint));
+  async quote(token: string): Promise<number | null> {
+    const url = this.options.url.replaceAll("{token}", encodeURIComponent(token));
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 5_000);
 
@@ -53,7 +53,7 @@ export class HttpPriceSource implements PriceSource {
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) return null;
       const body: unknown = await response.json();
-      const raw = readPath(body, this.options.path.replaceAll("{mint}", mint));
+      const raw = readPath(body, this.options.path.replaceAll("{token}", token));
       const value = typeof raw === "string" ? Number(raw) : raw;
       // A non-finite or non-positive mark is not a price. Returning it would
       // trip the stop loss on every open position at once.
@@ -80,7 +80,7 @@ export function resolvePriceSource(env: Record<string, string | undefined>): Pri
   if (!url) return new NullPriceSource();
   return new HttpPriceSource({
     url,
-    path: env["EXECUTION_PRICE_PATH"] ?? "data.{mint}.usdPrice",
+    path: env["EXECUTION_PRICE_PATH"] ?? "data.{token}.usdPrice",
     ...(env["EXECUTION_PRICE_TIMEOUT_MS"]
       ? { timeoutMs: Number(env["EXECUTION_PRICE_TIMEOUT_MS"]) }
       : {}),

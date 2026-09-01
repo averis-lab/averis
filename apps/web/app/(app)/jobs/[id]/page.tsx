@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { api, attempt } from "@/lib/api";
+/* `api` stays imported for its types below — `typeof api.explain` and
+   friends describe the report shapes. The calls go through `viewerApi()`. */
+import { api, attempt, viewerApi } from "@/lib/api";
 import { IN_FLIGHT, SEVERITY_TONE, pct, pct1, timeAgo } from "@/lib/format";
 import { ApiDown, Card, Meter, StatusBadge } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -10,7 +12,15 @@ export const dynamic = "force-dynamic";
 export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
   const { id } = await params;
 
-  const job = await attempt(() => api.getJob(id));
+  /*
+   * The viewer's own identity, so a job created under a wallet is readable by
+   * the wallet that created it. The gateway answers 404 rather than 403 for
+   * another account's job, so reading this as the application would make a
+   * person's own job indistinguishable from one that never existed.
+   */
+  const client = await viewerApi();
+
+  const job = await attempt(() => client.getJob(id));
   if (!job.ok) {
     if (job.error.includes("not found")) notFound();
     return <ApiDown error={job.error} />;
@@ -19,7 +29,10 @@ export default async function JobPage({ params }: PageProps<"/jobs/[id]">) {
   const inFlight = IN_FLIGHT.has(job.value.status);
   const resolved = job.value.status === "RESOLVED";
   const [report, why] = resolved
-    ? await Promise.all([attempt(() => api.getIntelligence(id)), attempt(() => api.explain(id))])
+    ? await Promise.all([
+        attempt(() => client.getIntelligence(id)),
+        attempt(() => client.explain(id)),
+      ])
     : [null, null];
 
   return (
@@ -260,6 +273,56 @@ function Why({ explanation }: { explanation: Explanation }) {
 
 type ReportData = Awaited<ReturnType<typeof api.getIntelligence>>;
 
+/**
+ * What the cohort was made of.
+ *
+ * Sits directly under the consensus meter because that is where it is needed:
+ * a reader who has just seen "92% consensus" is about to decide how much to
+ * trust it, and whether those agents could be wrong in different ways is part
+ * of that answer. It is stated rather than folded into the number — see
+ * `CohortIndependence` for why the protocol refuses to invent a coefficient.
+ */
+function CohortMix({
+  independence,
+  cohortSize,
+}: {
+  independence: ReportData["intelligence"]["independence"];
+  cohortSize: number;
+}) {
+  // Null is "not recorded", never "one vendor". Rendering a confident-looking
+  // vendor line for a job that predates the measurement would be the one kind
+  // of lie this page exists to avoid.
+  if (!independence || independence.origins.length === 0) return null;
+
+  const limited =
+    independence.unknown || independence.monoculture || independence.origins.length === 1;
+
+  const note = independence.unknown
+    ? "Some agents have no recorded model, so how independently this cohort could be wrong is unknown."
+    : independence.monoculture
+      ? `All ${cohortSize} agents ran the same model, so their agreement reflects that shared model as well as the evidence.`
+      : independence.origins.length === 1
+        ? `Every model here came from ${independence.origins[0]?.origin}, so one vendor's blind spot is shared by the whole cohort.`
+        : `${independence.origins.length} vendors, ${independence.effectiveOrigins.toFixed(1)} effective once weighted — this agreement survived more than one model.`;
+
+  return (
+    <div
+      className={`mt-4 rounded-lg border px-3 py-2 ${
+        limited ? "border-amber-500/30 bg-amber-500/5" : "border-line bg-line/5"
+      }`}
+    >
+      <p className={`text-xs leading-relaxed ${limited ? "text-amber-500" : "text-muted"}`}>
+        {note}
+      </p>
+      <p className="mt-1.5 font-mono text-[11px] text-muted">
+        {independence.origins
+          .map((row) => `${row.origin} ×${row.agents} (${pct(row.weight)})`)
+          .join(" · ")}
+      </p>
+    </div>
+  );
+}
+
 function Report({ report }: { report: ReportData }) {
   const { intelligence: intel, contributions, agentOutputs, evidence } = report;
 
@@ -297,6 +360,8 @@ function Report({ report }: { report: ReportData }) {
               : `Only ${intel.corroboration.cohortSize} of ${intel.corroboration.expected} agents finished, so the consensus score is discounted to reflect the narrower corroboration.`}
           </p>
         ) : null}
+
+        <CohortMix independence={intel.independence} cohortSize={contributions.length} />
 
         <p className="mt-4 font-mono text-[11px] text-muted">
           strategy {intel.strategy} · {contributions.length} agents · {evidence.length} evidence

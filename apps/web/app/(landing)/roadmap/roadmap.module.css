@@ -63,7 +63,7 @@
 
 .meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, auto));
+  grid-template-columns: repeat(4, minmax(0, auto));
   justify-content: start;
   gap: 22px 40px;
   margin-top: 30px;
@@ -125,6 +125,16 @@
   color: #85858b;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-size: 12px;
+}
+
+/* Sits under the phase's status pill: how much of the list below has run. */
+.phaseTally {
+  display: block;
+  margin-top: 12px;
+  color: #6f6f74;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: -0.005em;
 }
 
 .phaseTitle {
@@ -246,6 +256,16 @@
 }
 .markPlanned {
   color: #6f6f74;
+}
+/*
+ * Hollow rather than filled. Colour alone carries the difference between done
+ * and not-done nowhere that colour is unavailable — print, a monochrome
+ * screen, most kinds of colour blindness — and this list's whole purpose is
+ * saying which of the two a line is.
+ */
+.markPlanned::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
 }
 
 /* ─── The narrative ──────────────────────────────────────────────────────── */
@@ -528,6 +548,9 @@
   .phaseIndex,
   .phaseWhen {
     margin-bottom: 0;
+  }
+  .phaseTally {
+    margin-top: 0;
   }
 }
 

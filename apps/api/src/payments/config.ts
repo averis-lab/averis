@@ -33,7 +33,7 @@ export interface EvmNetwork {
 /** USDC is six decimals on every EVM chain; overridable for a different token. */
 const DEFAULT_DECIMALS = 6;
 
-/** 0x followed by 20 bytes. Catches a Solana address pasted into an EVM field. */
+/** 0x followed by 20 bytes. Catches an address from another chain pasted in. */
 const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 
 export interface PaymentConfig {

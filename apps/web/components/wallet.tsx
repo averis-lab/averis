@@ -69,7 +69,6 @@ export function WalletProvider({
         // is how a product that holds nothing starts holding something.
         embeddedWallets: {
           ethereum: { createOnLogin: "off" },
-          solana: { createOnLogin: "off" },
         },
       }}
     >

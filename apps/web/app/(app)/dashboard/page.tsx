@@ -1,14 +1,27 @@
 import Link from "next/link";
-import { api, attempt, fetchJson } from "@/lib/api";
+import { attempt, fetchJson, viewerApi, walletLoginEnabled } from "@/lib/api";
+import { viewerToken } from "@/lib/session";
 import { pct, timeAgo } from "@/lib/format";
 import { ApiDown, Card, Empty, SectionHead, StatStrip, StatusBadge } from "@/components/ui";
+import { ConnectGate } from "@/components/wallet";
 import { CreateJobForm } from "@/components/create-job-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  /*
+   * Read as the viewer, not as the application.
+   *
+   * The gateway scopes both the list and the stats to the requester, so these
+   * have to speak with the same identity the create action does — otherwise a
+   * person creates a job under their wallet and is redirected to a page that
+   * reads under the app key and answers 404, which looks like the job was lost.
+   */
+  const token = await viewerToken();
+  const client = await viewerApi();
+
   const [jobs, stats] = await Promise.all([
-    attempt(() => api.listJobs({ limit: 12 })),
+    attempt(() => client.listJobs({ limit: 12 })),
     attempt(() =>
       fetchJson<{
         data: {
@@ -26,7 +39,7 @@ export default async function Home() {
             failureRate: number | null;
           };
         };
-      }>("/v1/stats"),
+      }>("/v1/stats", undefined, token),
     ),
   ]);
 
@@ -76,9 +89,17 @@ export default async function Home() {
             thing you come back to after reading one. */}
         <section className="lg:sticky lg:top-10">
           <SectionHead>New intelligence job</SectionHead>
-          <Card className="p-5">
-            <CreateJobForm />
-          </Card>
+          {/* The form is hidden rather than shown-and-refused when a wallet is
+              required and absent: the action would reject the submission
+              anyway, and offering a button that cannot work is worse than
+              saying plainly what is missing. */}
+          {walletLoginEnabled() && !token ? (
+            <ConnectGate />
+          ) : (
+            <Card className="p-5">
+              <CreateJobForm />
+            </Card>
+          )}
         </section>
 
         <section>

@@ -218,7 +218,7 @@ function PositionRow({ position }: { position: PositionView }) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-mono text-sm font-medium">{position.symbol}</p>
-          <p className="mt-0.5 truncate font-mono text-[10px] text-muted">{position.mint}</p>
+          <p className="mt-0.5 truncate font-mono text-[10px] text-muted">{position.token}</p>
         </div>
         <div className="text-right font-mono text-xs">
           <p className="tabular-nums">{usd(position.sizeUsd)}</p>
@@ -270,7 +270,7 @@ function PolicyCard({ policy }: { policy: TradePolicyView }) {
     ["Trailing", `−${policy.trailingStopPct}% after +${policy.trailingActivationPct}%`],
     ["Max hold", `${policy.maxHoldMinutes}m`],
     ["Breaker", `${policy.maxConsecutiveLosses} losses / ${usd(policy.maxDailyDrawdownUsd)}`],
-    ["Mint cooldown", `${policy.mintCooldownMinutes}m`],
+    ["Token cooldown", `${policy.tokenCooldownMinutes}m`],
   ];
 
   return (

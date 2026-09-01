@@ -128,7 +128,10 @@ export class GeminiProvider implements LLMProvider {
                 responseMimeType: "application/json",
                 responseJsonSchema: z.toJSONSchema(request.responseSchema.schema, {
                   target: "draft-2020-12",
-                  io: "output",
+                  // What the model must send, not what parsing yields — and a
+                  // schema that normalises a field on the way in cannot be
+                  // rendered from the output side at all.
+                  io: "input",
                 }),
               }
             : {}),

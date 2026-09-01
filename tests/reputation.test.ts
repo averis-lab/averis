@@ -19,6 +19,7 @@ function output(
 ): ConsensusInput {
   return {
     outputId: `o-${id}`, agentId: id, agentName: id, summary: "s", confidence: 0.8,
+    modelProvider: "mock", modelName: "mock-analyst",
     claims: claims.map((c) => ({
       statement: c.text, kind: "ASSESSMENT" as const, confidence: c.conf,
       fingerprint: claimFingerprint(c.text), evidence: c.evidence,

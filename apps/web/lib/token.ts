@@ -30,20 +30,49 @@ const RPCS = ["https://rpc.mainnet.chain.robinhood.com", "https://rpc.arrowrpc.c
 const POOL_MANAGER = "0x8366a39cc670b4001a1121b8f6a443a643e40951";
 
 /**
- * Where this pool's `Slot0` lives inside the PoolManager.
+ * The ETH/AVRS pools, and where each one's state lives in the PoolManager.
  *
  * v4 keeps all pool state in one contract's storage rather than in a contract
- * per pair, so there is nothing to call — the value is read straight out of
- * the slot with `extsload`. The key is
- * `keccak256(abi.encode(poolId, uint256(6)))`, where 6 is the `_pools` mapping
- * and the poolId is the ETH/AVRS pool. Both inputs are constant, so the hash
- * is precomputed rather than recomputed on every request; deriving it needs a
- * keccak implementation this app otherwise has no reason to carry.
+ * per pair, so there is nothing to call — the values are read straight out of
+ * the slots with `extsload`. The base key is
+ * `keccak256(abi.encode(poolId, uint256(6)))`, where 6 is the `_pools`
+ * mapping. Inside that struct `Slot0` is the first word and `liquidity` is the
+ * fourth, so the second key is simply the base plus three. Every input is
+ * constant, so the hashes are precomputed rather than recomputed on each
+ * request; deriving them needs a keccak implementation this app otherwise has
+ * no reason to carry.
  *
- * Verified against the pool's `Initialize` log and cross-checked: the price it
- * yields matches the venue's own quote to every published digit.
+ * There is more than one, and that is the whole point of the list.
+ *
+ * AVRS launched on a bonding curve and then *graduated*, which minted a second
+ * pool and left the first one behind holding a couple of dollars. An earlier
+ * version of this file named the launch pool by its hash alone, so the moment
+ * the market moved the page went on quoting a venue nobody trades on — a price
+ * roughly a quarter of the real one. Reading every known pool and taking the
+ * deepest makes that failure impossible to repeat: a drained pool can never
+ * win, and the next migration is one line here rather than a wrong number
+ * nobody notices.
+ *
+ * Verified against each pool's `Initialize` log and cross-checked: the price
+ * the deepest one yields matches the venue's own quote to every published digit.
  */
-const SLOT0_KEY = "0xddb6708c30672da6024c67ceb07df9190bbb11fd1b07fe6e3585f44f5db5ee52";
+const POOLS: { id: string; slot0Key: string }[] = [
+  {
+    // Graduated 2026-08-28. Carries effectively all of the liquidity and volume.
+    id: "0xd69f7b8e7b0f07b9c784d5104840e68b570730b57a15a5690987de49006d02c7",
+    slot0Key: "0x5e2fcad37ccd79f5cb033719eaf720685f9c2978220ad7a52f42e3305659cb02",
+  },
+  {
+    // The pre-graduation launch pool. Kept only so a reading is still possible
+    // if the pool above is ever drained in turn.
+    id: "0xce5f0613a393ecf9dc19b85ab7abd12aa8c048d0b361d74469e04e15131751a5",
+    slot0Key: "0xddb6708c30672da6024c67ceb07df9190bbb11fd1b07fe6e3585f44f5db5ee52",
+  },
+];
+
+/** `_pools[id].liquidity` — the fourth word of the struct. */
+const liquidityKey = (slot0Key: string): string =>
+  `0x${(BigInt(slot0Key) + 3n).toString(16).padStart(64, "0")}`;
 
 const SELECTOR = {
   /** `extsload(bytes32)` — reads one word of PoolManager storage. */
@@ -86,6 +115,12 @@ export interface TokenSnapshot {
   block: number | null;
   ethUsd: number | null;
   fetchedAt: number;
+  /** The highest price AVRS has ever traded at, in USD. */
+  athPriceUsd: number | null;
+  /** That price against today's supply. See `fetchAth` for what it does mean. */
+  athMarketCap: number | null;
+  /** When the high was set, as a unix millisecond stamp. */
+  athAt: number | null;
   /**
    * True when this is a remembered reading rather than a fresh one, because
    * neither the chain nor a fallback answered in time. The rail says so; a
@@ -264,6 +299,85 @@ async function fetchEthUsd(): Promise<number | null> {
   }
 }
 
+/* ─── All-time high ──────────────────────────────────────────────────────── */
+
+/**
+ * The highest AVRS has ever traded, which the chain cannot answer.
+ *
+ * Everything else here is read from the pool on principle, and this is the one
+ * figure that genuinely cannot be: an all-time high is a fact about every
+ * block since launch, and this chain's public nodes are pruned. Reconstructing
+ * it would mean replaying swap logs nobody still serves. So it comes from an
+ * indexer that was watching at the time, and it is the only number on the rail
+ * that does.
+ *
+ * Daily candles, not hourly or minute ones. A candle's high is the highest
+ * price inside it however long it is, so a daily series gives exactly the same
+ * maximum as a minute series — while one request at `limit=1000` covers about
+ * three years instead of seventeen hours. Coarser candles cost nothing here
+ * because only the extreme is wanted, never the shape.
+ */
+const ATH_POOL = POOLS[0].id;
+const ATH_URL =
+  `https://api.geckoterminal.com/api/v2/networks/robinhood/pools/${ATH_POOL}` +
+  `/ohlcv/day?aggregate=1&limit=1000&currency=usd&token=base`;
+
+/**
+ * A high does not go stale the way a price does.
+ *
+ * It changes at most once a day, and only upward, so it is read on its own
+ * slower clock rather than on every fifteen-second poll of the price — and
+ * because the live price ratchets it below, a new high shows on the rail
+ * immediately regardless of when this last ran.
+ */
+const ATH_TTL_SECONDS = 300;
+const ATH_GRACE_MS = 6 * 60 * 60_000;
+
+/** Module scope, so one instance keeps the last good high across requests. */
+let lastAth: { price: number; at: number | null; fetchedAt: number } | null = null;
+
+/**
+ * Highest daily high on record, with the moment it was set.
+ *
+ * Returns null only when the indexer is unreachable *and* nothing is
+ * remembered — which the rail draws as a dash, not as a zero.
+ */
+async function fetchAth(): Promise<{ price: number; at: number | null } | null> {
+  try {
+    const response = await fetch(ATH_URL, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      next: { revalidate: ATH_TTL_SECONDS },
+    });
+    if (!response.ok) throw new Error(String(response.status));
+
+    // [timestamp, open, high, low, close, volume] per candle, newest first.
+    const candles = dig(await response.json(), "data", "attributes", "ohlcv_list");
+    if (!Array.isArray(candles)) throw new Error("shape");
+
+    let price = 0;
+    let at: number | null = null;
+    for (const candle of candles) {
+      if (!Array.isArray(candle)) continue;
+      const high = Number(candle[2]);
+      if (Number.isFinite(high) && high > price) {
+        price = high;
+        const seconds = Number(candle[0]);
+        at = Number.isFinite(seconds) ? seconds * 1000 : null;
+      }
+    }
+    if (price <= 0) throw new Error("empty");
+
+    lastAth = { price, at, fetchedAt: Date.now() };
+    return { price, at };
+  } catch {
+    if (lastAth && Date.now() - lastAth.fetchedAt < ATH_GRACE_MS) {
+      return { price: lastAth.price, at: lastAth.at };
+    }
+    return null;
+  }
+}
+
 /* ─── Snapshot ───────────────────────────────────────────────────────────── */
 
 /**
@@ -275,37 +389,73 @@ async function fetchEthUsd(): Promise<number | null> {
  * about the two.
  */
 export async function fetchTokenSnapshot(): Promise<TokenSnapshot | null> {
-  const [chain, ethUsd] = await Promise.all([
+  const read = (to: string, data: string): RpcCall => ({
+    method: "eth_call",
+    params: [{ to, data }, "latest"],
+  });
+  const extsload = (key: string): RpcCall =>
+    read(POOL_MANAGER, SELECTOR.extsload + key.slice(2));
+
+  const [chain, ethUsd, ath] = await Promise.all([
     rpcBatch([
       { method: "eth_blockNumber", params: [] },
-      {
-        method: "eth_call",
-        params: [{ to: POOL_MANAGER, data: SELECTOR.extsload + SLOT0_KEY.slice(2) }, "latest"],
-      },
-      {
-        method: "eth_call",
-        params: [{ to: TOKEN_ADDRESS, data: SELECTOR.totalSupply }, "latest"],
-      },
+      read(TOKEN_ADDRESS, SELECTOR.totalSupply),
+      // Two words per pool — its price and its depth — so the depth that picks
+      // the pool is read at the same block as the price it picks.
+      ...POOLS.flatMap((pool) => [extsload(pool.slot0Key), extsload(liquidityKey(pool.slot0Key))]),
     ]),
     fetchEthUsd(),
+    fetchAth(),
   ]);
 
   if (!chain) return null;
 
-  const [blockRaw, slot0Raw, supplyRaw] = chain;
-  const slot0 = asBigInt(slot0Raw);
+  const [blockRaw, supplyRaw, ...poolRaw] = chain;
   const blockBig = asBigInt(blockRaw);
   const supply = asBigInt(supplyRaw);
-  if (slot0 === null) return null;
 
-  const priceEth = priceFromSlot0(slot0);
-  const priceUsd = priceEth !== null && ethUsd !== null ? priceEth * ethUsd : null;
+  /*
+   * The deepest pool wins.
+   *
+   * Both candidates quote AVRS against native ether at 18 decimals, so their
+   * `liquidity` figures are in the same unit and directly comparable. A pool
+   * that has been drained reports a price as confidently as a live one — the
+   * ratio in its Slot0 is whatever the last trade left behind — so depth, not
+   * the presence of a number, is what decides which reading is the market's.
+   */
+  let priceEth: number | null = null;
+  let depth = 0n;
+  for (const [index] of POOLS.entries()) {
+    const slot0 = asBigInt(poolRaw[index * 2]);
+    const liquidity = asBigInt(poolRaw[index * 2 + 1]);
+    if (slot0 === null || liquidity === null || liquidity <= depth) continue;
+
+    const candidate = priceFromSlot0(slot0);
+    if (candidate === null) continue;
+
+    priceEth = candidate;
+    depth = liquidity;
+  }
+  if (priceEth === null) return null;
+
+  const priceUsd = ethUsd !== null ? priceEth * ethUsd : null;
 
   const circulating = supply === null ? null : Number(supply) / 10 ** DECIMALS;
-  const marketCap =
-    priceUsd !== null && circulating !== null && Number.isFinite(circulating)
-      ? priceUsd * circulating
-      : null;
+  const usable = circulating !== null && Number.isFinite(circulating) ? circulating : null;
+  const marketCap = priceUsd !== null && usable !== null ? priceUsd * usable : null;
+
+  /*
+   * The high ratchets against the live price.
+   *
+   * The indexer's series is only granular to the day and is fetched on a five
+   * minute clock, so a record set in the last few minutes is not in it yet.
+   * Taking the larger of the two means the rail can never show an all-time
+   * high beneath the price printed next to it, which is the one way this
+   * figure could read as obviously wrong.
+   */
+  const athPriceUsd =
+    ath === null ? priceUsd : priceUsd === null ? ath.price : Math.max(ath.price, priceUsd);
+  const athAt = ath !== null && priceUsd !== null && priceUsd > ath.price ? Date.now() : (ath?.at ?? null);
 
   return {
     priceUsd,
@@ -314,6 +464,9 @@ export async function fetchTokenSnapshot(): Promise<TokenSnapshot | null> {
     block: blockBig === null ? null : Number(blockBig),
     ethUsd,
     fetchedAt: Date.now(),
+    athPriceUsd,
+    athMarketCap: athPriceUsd !== null && usable !== null ? athPriceUsd * usable : null,
+    athAt,
   };
 }
 

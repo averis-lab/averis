@@ -14,12 +14,16 @@
  *  2. **Deciding is separable from paying.** This file holds only the rules:
  *     given rows and an address book, `planSettlement` returns what would be
  *     paid and why the rest would not. It imports no database and opens no
- *     connection — which is what lets every rule below be tested without a
- *     chain, a database, or money. `settlement.ts` carries a plan out.
+ *     connection — the on-chain driver it names loads its chain library lazily,
+ *     so this stays true — which is what lets every rule below be tested
+ *     without a chain, a database, or money. `settlement.ts` carries a plan
+ *     out.
  *  3. **Nothing pays out more than the job's budget.** The split is already
  *     normalised upstream; this checks it again at the point of no return,
  *     because a bug that overpays is not recoverable by rolling back a row.
  */
+
+import { EvmSettlementDriver, evmSettlementConfigFrom } from "./settlement-evm";
 
 export type RewardRole = "AGENT" | "VALIDATOR" | "PROTOCOL" | "TREASURY";
 
@@ -70,6 +74,15 @@ export interface SettlementPlan {
 export interface PlanOptions {
   /** Job budgets, used for the overspend check. Missing means unchecked. */
   budgets?: Record<string, number>;
+  /**
+   * The driver's own test for an address it could pay. Missing means unchecked.
+   *
+   * Asked here rather than in the driver so an unpayable address is a skip with
+   * a reason, visible in `npm run settle` before anything is executed, instead
+   * of a failure discovered partway through a sweep that has already paid some
+   * of the split.
+   */
+  acceptsPayee?: (payee: string) => boolean;
 }
 
 /**
@@ -140,6 +153,20 @@ export function planSettlement(
       continue;
     }
 
+    if (options.acceptsPayee && !options.acceptsPayee(payee)) {
+      // The inbound paywall validates the address it is paid to; until now
+      // nothing validated the addresses paid out. An agent whose owner
+      // connected a wallet on another chain lands here.
+      skips.push({
+        rewardId: reward.id,
+        reason:
+          reward.role === "AGENT"
+            ? `agent ${reward.agentId ?? "?"} has a payout address this driver cannot pay: ${payee}`
+            : `the address configured for ${reward.role} is not one this driver can pay: ${payee}`,
+      });
+      continue;
+    }
+
     instructions.push({
       rewardId: reward.id,
       jobId: reward.jobId,
@@ -162,6 +189,14 @@ export interface SettlementReceipt {
 
 export interface SettlementDriver {
   readonly name: string;
+  /**
+   * Whether this driver could pay this address at all.
+   *
+   * Optional: a driver that does not implement it accepts anything, which is
+   * right for `ledger`, where the payee is a note about a payment made
+   * somewhere else rather than an address anything will be sent to.
+   */
+  acceptsPayee?(payee: string): boolean;
   settle(instruction: SettlementInstruction): Promise<SettlementReceipt>;
 }
 
@@ -206,9 +241,11 @@ export class LedgerSettlementDriver implements SettlementDriver {
 /**
  * Builds the driver named by the environment.
  *
- * On-chain drivers are deliberately absent rather than stubbed. Writing an
- * untested transfer path would produce code that looks ready to move money and
- * has never moved any, which is the worst thing to have in a settlement layer.
+ * The default is still `none`, and moving money still takes two deliberate
+ * acts: naming a driver here, and passing `--execute` to the sweep. A chain
+ * name is not a driver name — `SETTLEMENT_DRIVER=robinhood` fails, because the
+ * chain is chosen by `SETTLEMENT_CHAIN_ID` and the driver only says how to
+ * reach it.
  */
 export function createSettlementDriver(
   env: NodeJS.ProcessEnv = process.env,
@@ -216,6 +253,8 @@ export function createSettlementDriver(
   const name = (env["SETTLEMENT_DRIVER"] ?? "none").trim().toLowerCase();
 
   switch (name) {
+    case "evm":
+      return new EvmSettlementDriver(evmSettlementConfigFrom(env));
     case "ledger":
       return new LedgerSettlementDriver();
     case "none":
@@ -223,8 +262,8 @@ export function createSettlementDriver(
       return new NoSettlementDriver();
     default:
       throw new Error(
-        `Unknown SETTLEMENT_DRIVER "${name}". Supported: none, ledger. On-chain settlement is ` +
-          "not implemented — see docs/protocol.md.",
+        `Unknown SETTLEMENT_DRIVER "${name}". Supported: none, ledger, evm. An EVM chain is ` +
+          "selected with SETTLEMENT_CHAIN_ID, not by naming it here — see docs/protocol.md.",
       );
   }
 }

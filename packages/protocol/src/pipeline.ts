@@ -3,6 +3,7 @@ import { QUEUES } from "@averis/queue";
 import { extractRubricTerms } from "@averis/reputation";
 import type { ConsensusInput, Evidence, Recommendation, Risk } from "@averis/types";
 import type { ProtocolContext } from "./context";
+import { splitReward } from "./reward-split";
 import { JobEngine, JobEngineError } from "./job-engine";
 
 /**
@@ -52,6 +53,12 @@ export async function loadConsensusInputs(jobId: string): Promise<ConsensusInput
       agentName: output.agent.name,
       summary: output.summary,
       confidence: output.confidence,
+      // From the output, never from `output.agent`. The registry row carries
+      // the agent's *current* binding, and reading the cohort's model mix
+      // through it would mean an operator repointing an agent tomorrow
+      // silently rewrites what a job finished last week says produced it.
+      modelProvider: output.modelProvider,
+      modelName: output.modelName,
       claims: output.claims.map((claim) => ({
         statement: claim.statement,
         kind: claim.kind,
@@ -226,6 +233,7 @@ export class ConsensusStage {
           outcome.recommendation === null ? Prisma.JsonNull : (outcome.recommendation as object),
         risks: outcome.risks as unknown as object,
         disagreements: outcome.disagreements as unknown as object,
+        independence: outcome.independence as unknown as object,
         contributions: {
           create: outcome.contributions.map((c) => ({
             agentId: c.agentId,
@@ -242,6 +250,10 @@ export class ConsensusStage {
         confidence: outcome.confidence,
         consensusScore: outcome.consensusScore,
         claims: outcome.claims as unknown as object,
+        // Rewritten with the summary that quotes it. A re-merge that refreshed
+        // the wording and left the measurement behind would leave the two
+        // disagreeing on the same page.
+        independence: outcome.independence as unknown as object,
       },
     });
 
@@ -403,26 +415,3 @@ export class RewardStage {
   }
 }
 
-/** Configurable split; the defaults are placeholders, as the design intends. */
-export function splitReward(budget: number, env: NodeJS.ProcessEnv = process.env) {
-  const pct = (key: string, fallback: number): number => {
-    const raw = Number(env[key]);
-    return Number.isFinite(raw) && raw >= 0 && raw <= 1 ? raw : fallback;
-  };
-
-  const agents = pct("REWARD_SHARE_AGENTS", 0.7);
-  const validators = pct("REWARD_SHARE_VALIDATORS", 0.15);
-  const protocol = pct("REWARD_SHARE_PROTOCOL", 0.1);
-  const treasury = pct("REWARD_SHARE_TREASURY", 0.05);
-
-  const total = agents + validators + protocol + treasury;
-  // Normalize so a misconfigured split can never pay out more than the budget.
-  const scale = total > 0 ? budget / total : 0;
-
-  return {
-    agents: agents * scale,
-    validators: validators * scale,
-    protocol: protocol * scale,
-    treasury: treasury * scale,
-  };
-}

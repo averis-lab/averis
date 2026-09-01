@@ -11,6 +11,7 @@ import {
 } from "./settlement-plan";
 
 export * from "./settlement-plan";
+export * from "./settlement-evm";
 
 /**
  * Outbound settlement — the paying half.
@@ -100,7 +101,15 @@ export class SettlementEngine {
     });
     const budgets = Object.fromEntries(jobs.map((job) => [job.id, toNumber(job.budget)]));
 
-    return planSettlement(rewards, this.addresses, { budgets });
+    // The driver decides which addresses it can pay, so a plan is honest about
+    // what a sweep with *this* driver would actually do rather than about what
+    // some driver could.
+    const acceptsPayee = this.driver.acceptsPayee?.bind(this.driver);
+
+    return planSettlement(rewards, this.addresses, {
+      budgets,
+      ...(acceptsPayee ? { acceptsPayee } : {}),
+    });
   }
 
   /** Settles everything outstanding, oldest first. */

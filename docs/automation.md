@@ -26,8 +26,8 @@ a database dump must never be enough to move someone's money.
 
 **No live driver.** `EXECUTION_DRIVER` accepts `none` and `paper`. Setting the
 mode to `LIVE` returns 501 with the reason. This is the same position
-`SETTLEMENT_DRIVER` takes, for the same reason: an untested transfer path
-sitting beside code that has never moved a lamport is the most dangerous thing
+`SETTLEMENT_DRIVER` takes, for the same reason: an untested swap path
+sitting beside code that has never executed a trade is the most dangerous thing
 that can be in this repository, because it looks ready.
 
 **No performance claims.** The dashboard shows realised P&L with its sample
@@ -116,9 +116,9 @@ error multi-agent analysis exists to avoid.
 ### Why there is no symbol allowlist
 
 An allowlist is the right primitive for equities and it does not survive contact
-with memecoins, where every candidate is a mint that did not exist an hour ago.
+with memecoins, where every candidate is a token contract that did not exist an hour ago.
 The gate moves instead to the thing Averis can actually vouch for — a verdict
-that cleared the floors above — plus one position per mint and a per-mint
+that cleared the floors above — plus one position per token and a per-token
 cooldown, so a single trending token cannot become the whole book. A blocklist
 remains, but it is a mop rather than a gate: it can only name what someone has
 already found.

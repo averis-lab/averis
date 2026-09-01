@@ -3,18 +3,19 @@ import type { ExitReason, OpenPosition } from "./plan";
 /**
  * Execution drivers.
  *
- * The same posture `SETTLEMENT_DRIVER` takes, for the same reason: the default
- * refuses to act rather than pretending to. A no-op driver that reported
- * success would fill an automation's book with positions that do not exist,
- * and its owner would read the resulting equity curve as real.
+ * The same default `SETTLEMENT_DRIVER` takes, for the same reason: it refuses to
+ * act rather than pretending to. A no-op driver that reported success would fill
+ * an automation's book with positions that do not exist, and its owner would
+ * read the resulting equity curve as real.
  *
- * There is deliberately **no live driver**. Writing an unrun swap path and
- * shipping it beside code that has never moved a lamport is the most dangerous
- * possible thing to have here, because it looks ready.
+ * Unlike settlement, which now has an on-chain driver, there is deliberately
+ * **no live driver** here. Writing an unrun swap path and shipping it beside
+ * code that has never executed a trade is the most dangerous possible thing to
+ * have here, because it looks ready.
  */
 
 export interface OpenOrder {
-  mint: string;
+  token: string;
   symbol: string;
   sizeUsd: number;
   /** Quoted price the decision was made against. */

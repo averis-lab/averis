@@ -39,12 +39,12 @@ const policy = TradePolicySchema.parse({
   maxConsecutiveLosses: 3,
   maxDailyDrawdownUsd: 50,
   cooldownAfterLossMinutes: 30,
-  mintCooldownMinutes: 60,
+  tokenCooldownMinutes: 60,
 });
 
 const verdict = (overrides: Partial<IntelligenceVerdict> = {}): IntelligenceVerdict => ({
   jobId: "job-1",
-  mint: "MintAAA",
+  token: "TokenAAA",
   symbol: "AAA",
   action: "buy",
   confidence: 0.8,
@@ -68,7 +68,7 @@ const entry = (overrides: Partial<EntryInput> = {}): EntryInput => ({
 
 const position = (overrides: Partial<OpenPosition> = {}): OpenPosition => ({
   id: "pos-1",
-  mint: "MintAAA",
+  token: "TokenAAA",
   sizeUsd: 25,
   entryPrice: 100,
   peakPrice: 100,
@@ -120,16 +120,16 @@ describe("entry gate", () => {
     }
   });
 
-  it("refuses a second position in a mint it already holds", () => {
+  it("refuses a second position in a token it already holds", () => {
     const decision = planEntry(entry({ openPositions: [position()] }));
     expect(decision.reason).toBe("ALREADY_HOLDING");
   });
 
-  it("holds the per-mint cooldown after a trade in the same name", () => {
-    const trades: ClosedTrade[] = [{ mint: "MintAAA", pnlUsd: 12, closedAt: minutesAgo(30) }];
-    expect(planEntry(entry({ recentTrades: trades })).reason).toBe("MINT_COOLDOWN");
+  it("holds the per-token cooldown after a trade in the same name", () => {
+    const trades: ClosedTrade[] = [{ token: "TokenAAA", pnlUsd: 12, closedAt: minutesAgo(30) }];
+    expect(planEntry(entry({ recentTrades: trades })).reason).toBe("TOKEN_COOLDOWN");
     // Same trade, past the window.
-    const old: ClosedTrade[] = [{ mint: "MintAAA", pnlUsd: 12, closedAt: minutesAgo(61) }];
+    const old: ClosedTrade[] = [{ token: "TokenAAA", pnlUsd: 12, closedAt: minutesAgo(61) }];
     expect(planEntry(entry({ recentTrades: old })).open).toBe(true);
   });
 
@@ -137,23 +137,23 @@ describe("entry gate", () => {
     // Three open at $25 is $75; the fourth would be $100, which is the ceiling
     // exactly and therefore allowed — but the position limit binds first.
     const open = [
-      position({ id: "a", mint: "M1" }),
-      position({ id: "b", mint: "M2" }),
-      position({ id: "c", mint: "M3" }),
+      position({ id: "a", token: "M1" }),
+      position({ id: "b", token: "M2" }),
+      position({ id: "c", token: "M3" }),
     ];
     expect(planEntry(entry({ openPositions: open })).reason).toBe("MAX_POSITIONS");
 
     const roomy = TradePolicySchema.parse({ ...policy, maxConcurrentPositions: 10 });
     expect(planEntry(entry({ openPositions: open, policy: roomy })).open).toBe(true);
 
-    const fourth = [...open, position({ id: "d", mint: "M4" })];
+    const fourth = [...open, position({ id: "d", token: "M4" })];
     expect(planEntry(entry({ openPositions: fourth, policy: roomy })).reason).toBe("MAX_DEPLOYED");
   });
 });
 
 describe("circuit breaker", () => {
   const loss = (n: number): ClosedTrade => ({
-    mint: `M${n}`,
+    token: `M${n}`,
     pnlUsd: -5,
     closedAt: minutesAgo(n),
   });
@@ -168,12 +168,12 @@ describe("circuit breaker", () => {
 
   it("counts consecutively from the most recent trade, not in total", () => {
     // Two losses, a win, then a loss: the streak is one, not three.
-    const trades = [loss(1), { mint: "MW", pnlUsd: 20, closedAt: minutesAgo(2) }, loss(3), loss(4)];
+    const trades = [loss(1), { token: "MW", pnlUsd: 20, closedAt: minutesAgo(2) }, loss(3), loss(4)];
     expect(deriveBreaker(trades, policy, null, NOW).consecutiveLosses).toBe(1);
   });
 
   it("trips on daily drawdown independently of the streak", () => {
-    const trades: ClosedTrade[] = [{ mint: "M1", pnlUsd: -60, closedAt: minutesAgo(5) }];
+    const trades: ClosedTrade[] = [{ token: "M1", pnlUsd: -60, closedAt: minutesAgo(5) }];
     const state = deriveBreaker(trades, policy, null, NOW);
     expect(state.paused).toBe(true);
     expect(state.reason).toContain("drawdown");
@@ -191,7 +191,7 @@ describe("circuit breaker", () => {
 
   it("ignores losses older than the daily window for drawdown", () => {
     const trades: ClosedTrade[] = [
-      { mint: "M1", pnlUsd: -60, closedAt: new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000) },
+      { token: "M1", pnlUsd: -60, closedAt: new Date(NOW.getTime() - 2 * 24 * 60 * 60 * 1000) },
     ];
     expect(deriveBreaker(trades, policy, null, NOW).paused).toBe(false);
   });
@@ -241,7 +241,7 @@ describe("drivers", () => {
   it("defaults to a driver that refuses rather than a no-op that lies", async () => {
     const driver = resolveDriver(undefined);
     expect(driver.name).toBe("none");
-    await expect(driver.open({ mint: "M", symbol: "S", sizeUsd: 1, price: 1 })).rejects.toThrow(
+    await expect(driver.open({ token: "M", symbol: "S", sizeUsd: 1, price: 1 })).rejects.toThrow(
       /No execution driver/,
     );
     expect(new NoneDriver().spendsRealMoney).toBe(false);
@@ -260,11 +260,11 @@ describe("drivers", () => {
   it("books paper fills at the quoted price and rejects a bad mark", async () => {
     const paper = new PaperDriver();
     expect(paper.spendsRealMoney).toBe(false);
-    await expect(paper.open({ mint: "M", symbol: "S", sizeUsd: 25, price: 1.5 })).resolves.toEqual({
+    await expect(paper.open({ token: "M", symbol: "S", sizeUsd: 25, price: 1.5 })).resolves.toEqual({
       price: 1.5,
       signature: null,
     });
-    await expect(paper.open({ mint: "M", symbol: "S", sizeUsd: 25, price: 0 })).rejects.toThrow();
+    await expect(paper.open({ token: "M", symbol: "S", sizeUsd: 25, price: 0 })).rejects.toThrow();
   });
 });
 

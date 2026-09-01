@@ -39,11 +39,11 @@ describe("resolvePaymentConfig", () => {
   });
 
   it("rejects an address that is not an EVM address", () => {
-    // The shape a Solana address has. Accepting it would quote a challenge
-    // payable to something that does not exist on this chain.
-    const solana = "9xQeWvG816bUx9EPa2mNSMh1p4hbGRQ7pd5yPeeeeeee";
-    expect(() => resolvePaymentConfig({ ...enabled, X402_PAY_TO: solana })).toThrow(/X402_PAY_TO/);
-    expect(() => resolvePaymentConfig({ ...enabled, X402_ASSET: solana })).toThrow(/X402_ASSET/);
+    // A base58 address from another chain family. Accepting it would quote a
+    // challenge payable to something that does not exist on this chain.
+    const foreign = "9xQeWvG816bUx9EPa2mNSMh1p4hbGRQ7pd5yPeeeeeee";
+    expect(() => resolvePaymentConfig({ ...enabled, X402_PAY_TO: foreign })).toThrow(/X402_PAY_TO/);
+    expect(() => resolvePaymentConfig({ ...enabled, X402_ASSET: foreign })).toThrow(/X402_ASSET/);
   });
 
   it("refuses to start without a chain id, an RPC and a token", () => {

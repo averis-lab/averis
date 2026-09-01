@@ -12,6 +12,9 @@ import { prisma, disconnect } from "@averis/db";
  * Every agent runs on the `mock` provider by default so the reference demo
  * works with no API keys. Point an agent at a real provider by updating its
  * `modelProvider` / `modelName`, which is a registry change, not a code change.
+ *
+ * `LLM_PROVIDER` / `LLM_MODEL` set that binding for the whole registry, and
+ * `LLM_AGENT_MODELS` overrides it per agent — see `agentOverrides` below.
  */
 const AGENTS = [
   {
@@ -76,6 +79,68 @@ const AGENTS = [
   },
 ];
 
+/** Provider names `createLLMProvider` will accept; anything else is a model. */
+const PROVIDER_KINDS = new Set(["anthropic", "openai", "openrouter", "gemini", "mock"]);
+
+interface Binding {
+  provider: string;
+  model: string;
+}
+
+/**
+ * Per-agent model bindings, read from `LLM_AGENT_MODELS`.
+ *
+ *   LLM_AGENT_MODELS=Markets Agent=anthropic/claude-sonnet-5,Research Agent=openai/gpt-5.1
+ *
+ * This exists for one reason. A cohort whose agents all run the same model
+ * agrees with itself for reasons that have nothing to do with the evidence,
+ * and this protocol reports agreement as a result. Letting the registry span
+ * vendors is what makes a unanimous verdict worth reading — and through a
+ * gateway like OpenRouter it costs one credential rather than three.
+ *
+ * An entry may name a provider explicitly as `provider:model`. The split is
+ * only taken when the left side is a provider this codebase knows, because
+ * model ids carry colons of their own — `…/llama-3-8b-instruct:free` is one
+ * model, not the `…/llama-3-8b-instruct` provider.
+ */
+function agentOverrides(raw: string | undefined, fallback: Binding): Map<string, Binding> {
+  const bindings = new Map<string, Binding>();
+  if (!raw?.trim()) return bindings;
+
+  for (const entry of raw.split(",")) {
+    const separator = entry.indexOf("=");
+    if (separator < 0) {
+      // A bare model id here is the likely mistake, not a malformed pair: this
+      // variable overrides one named agent, and the thing someone reaching for
+      // it usually wants is the registry-wide default. Say which one that is,
+      // or the warning only tells them they are wrong.
+      console.warn(
+        `LLM_AGENT_MODELS: ignoring "${entry.trim()}" — expected "Agent Name=model". ` +
+          `To run every agent on one model, set LLM_MODEL=${entry.trim()} instead.`,
+      );
+      continue;
+    }
+
+    const name = entry.slice(0, separator).trim();
+    const value = entry.slice(separator + 1).trim();
+    if (!name || !value) {
+      console.warn(`LLM_AGENT_MODELS: ignoring "${entry.trim()}" — empty name or model.`);
+      continue;
+    }
+
+    const colon = value.indexOf(":");
+    const head = colon > 0 ? value.slice(0, colon) : "";
+    bindings.set(
+      name,
+      PROVIDER_KINDS.has(head)
+        ? { provider: head, model: value.slice(colon + 1) }
+        : { provider: fallback.provider, model: value },
+    );
+  }
+
+  return bindings;
+}
+
 async function main(): Promise<void> {
   const owner = await prisma.user.upsert({
     where: { handle: "protocol" },
@@ -94,17 +159,31 @@ async function main(): Promise<void> {
     update: {},
   });
 
+  // `||`, not `??`: .env ships LLM_MODEL as an empty string, which `??` passes
+  // straight through and leaves every agent with a blank model.
+  const registryDefault: Binding = {
+    provider: process.env["LLM_PROVIDER"] || "mock",
+    model: process.env["LLM_MODEL"] || "mock-analyst",
+  };
+  const overrides = agentOverrides(process.env["LLM_AGENT_MODELS"], registryDefault);
+
+  for (const name of overrides.keys()) {
+    if (!AGENTS.some((spec) => spec.name === name)) {
+      console.warn(`LLM_AGENT_MODELS: no agent named "${name}" in the registry — entry ignored.`);
+    }
+  }
+
   for (const spec of AGENTS) {
+    const binding = overrides.get(spec.name) ?? registryDefault;
+
     const agent = await prisma.agent.upsert({
       where: { name: spec.name },
       create: {
         name: spec.name,
         description: spec.description,
         ownerId: owner.id,
-        // `||`, not `??`: .env ships LLM_MODEL as an empty string, which `??`
-        // passes straight through and leaves every agent with a blank model.
-        modelProvider: process.env["LLM_PROVIDER"] || "mock",
-        modelName: process.env["LLM_MODEL"] || "mock-analyst",
+        modelProvider: binding.provider,
+        modelName: binding.model,
         tools: spec.tools,
         pricePerJob: spec.pricePerJob.toFixed(6),
         maxConcurrent: 3,
@@ -115,8 +194,8 @@ async function main(): Promise<void> {
       update: {
         description: spec.description,
         tools: spec.tools,
-        modelProvider: process.env["LLM_PROVIDER"] || "mock",
-        modelName: process.env["LLM_MODEL"] || "mock-analyst",
+        modelProvider: binding.provider,
+        modelName: binding.model,
       },
       select: { id: true },
     });
@@ -149,6 +228,17 @@ async function main(): Promise<void> {
   };
 
   console.log("Seeded registry:", counts, `(data source: ${dataSource.name})`);
+
+  // The binding decides which model produced every claim in the system, and it
+  // is the one thing here that is invisible in the UI until a job has already
+  // run on it. Printed so a misconfigured .env is caught at seed time.
+  const bound = await prisma.agent.findMany({
+    select: { name: true, modelProvider: true, modelName: true },
+    orderBy: { name: "asc" },
+  });
+  for (const agent of bound) {
+    console.log(`  ${agent.name.padEnd(20)} ${agent.modelProvider}:${agent.modelName}`);
+  }
 }
 
 main()
